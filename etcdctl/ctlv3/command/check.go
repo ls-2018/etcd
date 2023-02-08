@@ -26,18 +26,21 @@ import (
 	"sync"
 	"time"
 
-	v3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
-	"go.etcd.io/etcd/pkg/v3/report"
+	"github.com/ls-2018/etcd_cn/code_debug/conf"
 
-	"github.com/cheggaaa/pb/v3"
+	"gopkg.in/cheggaaa/pb.v1"
+
+	v3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
+	"github.com/ls-2018/etcd_cn/pkg/report"
+
 	"github.com/spf13/cobra"
 	"golang.org/x/time/rate"
 )
 
 var (
 	checkPerfLoad        string
-	checkPerfPrefix      string
+	checkPerfPrefix      string // 写入的数据的key前缀
 	checkDatascaleLoad   string
 	checkDatascalePrefix string
 	autoCompact          bool
@@ -45,8 +48,8 @@ var (
 )
 
 type checkPerfCfg struct {
-	limit    int
-	clients  int
+	limit    int // 每秒并发数
+	clients  int // 客户端
 	duration int
 }
 
@@ -59,7 +62,7 @@ var checkPerfCfgMap = map[string]checkPerfCfg{
 	},
 	"m": {
 		limit:    1000,
-		clients:  200,
+		clients:  200, //
 		duration: 60,
 	},
 	"l": {
@@ -108,7 +111,7 @@ var checkDatascaleCfgMap = map[string]checkDatascaleCfg{
 func NewCheckCommand() *cobra.Command {
 	cc := &cobra.Command{
 		Use:   "check <subcommand>",
-		Short: "commands for checking properties of the etcd cluster",
+		Short: "etcd集群属性检查命令",
 	}
 
 	cc.AddCommand(NewCheckPerfCommand())
@@ -121,25 +124,22 @@ func NewCheckCommand() *cobra.Command {
 func NewCheckPerfCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "perf [options]",
-		Short: "Check the performance of the etcd cluster",
+		Short: "查看etcd集群的性能",
 		Run:   newCheckPerfCommand,
 	}
 
-	// TODO: support customized configuration
-	cmd.Flags().StringVar(&checkPerfLoad, "load", "s", "The performance check's workload model. Accepted workloads: s(small), m(medium), l(large), xl(xLarge). Different workload models use different configurations in terms of number of clients and expected throughtput.")
-	cmd.Flags().StringVar(&checkPerfPrefix, "prefix", "/etcdctl-check-perf/", "The prefix for writing the performance check's keys.")
-	cmd.Flags().BoolVar(&autoCompact, "auto-compact", false, "Compact storage with last revision after test is finished.")
-	cmd.Flags().BoolVar(&autoDefrag, "auto-defrag", false, "Defragment storage after test is finished.")
-	cmd.RegisterFlagCompletionFunc("load", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		return []string{"small", "medium", "large", "xLarge"}, cobra.ShellCompDirectiveDefault
-	})
+	cmd.Flags().StringVar(&checkPerfLoad, "load", "s", "性能检查的工作负载模型.接受工作负载: s(small), m(medium), l(large), xl(xLarge)")
+	cmd.Flags().StringVar(&checkPerfPrefix, "prefix", "/etcdctl-check-perf/", "写性能检查键的前缀.")
+	cmd.Flags().BoolVar(&autoCompact, "auto-compact", false, "测试完成后,压缩修订版本")
+	cmd.Flags().BoolVar(&autoDefrag, "auto-defrag", false, "测试完成后 碎片整理")
 
 	return cmd
 }
 
 // newCheckPerfCommand executes the "check perf" command.
 func newCheckPerfCommand(cmd *cobra.Command, args []string) {
-	var checkPerfAlias = map[string]string{
+	conf.Perf = true
+	checkPerfAlias := map[string]string{
 		"s": "s", "small": "s",
 		"m": "m", "medium": "m",
 		"l": "l", "large": "l",
@@ -152,40 +152,46 @@ func newCheckPerfCommand(cmd *cobra.Command, args []string) {
 	}
 	cfg := checkPerfCfgMap[model]
 
-	requests := make(chan v3.Op, cfg.clients)
+	requests := make(chan v3.Op, cfg.clients) // 并发数
 	limit := rate.NewLimiter(rate.Limit(cfg.limit), 1)
 
 	cc := clientConfigFromCmd(cmd)
 	clients := make([]*v3.Client, cfg.clients)
 	for i := 0; i < cfg.clients; i++ {
-		clients[i] = mustClient(cc)
+		clients[i] = cc.mustClient()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.duration)*time.Second)
 	defer cancel()
-	ctx, icancel := interruptableContext(ctx, func() { attemptCleanup(clients[0], false) })
+	ctx, icancel := interruptableContext(ctx, func() {
+		attemptCleanup(clients[0], false) // 压缩修订版本
+	})
 	defer icancel()
 
 	gctx, gcancel := context.WithCancel(ctx)
+	// 判断前缀有没有值
 	resp, err := clients[0].Get(gctx, checkPerfPrefix, v3.WithPrefix(), v3.WithLimit(1))
 	gcancel()
 	if err != nil {
 		cobrautl.ExitWithError(cobrautl.ExitError, err)
 	}
 	if len(resp.Kvs) > 0 {
-		cobrautl.ExitWithError(cobrautl.ExitInvalidInput, fmt.Errorf("prefix %q has keys. Delete with 'etcdctl del --prefix %s' first", checkPerfPrefix, checkPerfPrefix))
+		cobrautl.ExitWithError(cobrautl.ExitInvalidInput, fmt.Errorf("前缀 %q 有值了. Delete with 'etcdctl del --prefix %s' first", checkPerfPrefix, checkPerfPrefix))
 	}
 
 	ksize, vsize := 256, 1024
 	k, v := make([]byte, ksize), string(make([]byte, vsize))
 
+	// display
 	bar := pb.New(cfg.duration)
+	bar.Format("Bom !")
 	bar.Start()
 
 	r := report.NewReport("%4.4f")
 	var wg sync.WaitGroup
 
 	wg.Add(len(clients))
+
 	for i := range clients {
 		go func(c *v3.Client) {
 			defer wg.Done()
@@ -206,7 +212,7 @@ func newCheckPerfCommand(cmd *cobra.Command, args []string) {
 		}
 		close(requests)
 	}()
-
+	// 倒计时
 	go func() {
 		for i := 0; i < cfg.duration; i++ {
 			time.Sleep(time.Second)
@@ -231,7 +237,7 @@ func newCheckPerfCommand(cmd *cobra.Command, args []string) {
 
 	ok = true
 	if len(s.ErrorDist) != 0 {
-		fmt.Println("FAIL: too many errors")
+		fmt.Println("FAIL: 错误太多")
 		for k, v := range s.ErrorDist {
 			fmt.Printf("FAIL: ERROR(%v) -> %d\n", k, v)
 		}
@@ -239,19 +245,19 @@ func newCheckPerfCommand(cmd *cobra.Command, args []string) {
 	}
 
 	if s.RPS/float64(cfg.limit) <= 0.9 {
-		fmt.Printf("FAIL: Throughput too low: %d writes/s\n", int(s.RPS)+1)
+		fmt.Printf("FAIL: 吞吐量太慢: %d writes/s\n", int(s.RPS)+1)
 		ok = false
 	} else {
-		fmt.Printf("PASS: Throughput is %d writes/s\n", int(s.RPS)+1)
+		fmt.Printf("PASS: 吞吐量 is %d writes/s\n", int(s.RPS)+1)
 	}
 	if s.Slowest > 0.5 { // slowest request > 500ms
-		fmt.Printf("Slowest request took too long: %fs\n", s.Slowest)
+		fmt.Printf("最慢的请求耗时太长: %fs\n", s.Slowest)
 		ok = false
 	} else {
 		fmt.Printf("PASS: Slowest request took %fs\n", s.Slowest)
 	}
 	if s.Stddev > 0.1 { // stddev > 100ms
-		fmt.Printf("Stddev too high: %fs\n", s.Stddev)
+		fmt.Printf("Stddev太高: %fs\n", s.Stddev)
 		ok = false
 	} else {
 		fmt.Printf("PASS: Stddev is %fs\n", s.Stddev)
@@ -265,16 +271,17 @@ func newCheckPerfCommand(cmd *cobra.Command, args []string) {
 	}
 }
 
+// 尝试清理
 func attemptCleanup(client *v3.Client, autoCompact bool) {
 	dctx, dcancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer dcancel()
 	dresp, err := client.Delete(dctx, checkPerfPrefix, v3.WithPrefix())
 	if err != nil {
-		fmt.Printf("FAIL: Cleanup failed during key deletion: ERROR(%v)\n", err)
+		fmt.Printf("FAIL:删除键时清除失败 : ERROR(%v)\n", err)
 		return
 	}
 	if autoCompact {
-		compact(client, dresp.Header.Revision)
+		compact(client, dresp.Header.Revision) // 压缩修订版本
 	}
 }
 
@@ -297,22 +304,22 @@ func interruptableContext(ctx context.Context, attemptCleanup func()) (context.C
 func NewCheckDatascaleCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "datascale [options]",
-		Short: "Check the memory usage of holding data for different workloads on a given server endpoint.",
-		Long:  "If no endpoint is provided, localhost will be used. If multiple endpoints are provided, first endpoint will be used.",
+		Short: "检查给定etcd端点上保存不同工作负载的数据的内存使用情况.",
+		Long:  "如果没有提供端点,则将使用localhost.如果提供了多个端点,则将使用第一个端点.",
 		Run:   newCheckDatascaleCommand,
 	}
 
-	cmd.Flags().StringVar(&checkDatascaleLoad, "load", "s", "The datascale check's workload model. Accepted workloads: s(small), m(medium), l(large), xl(xLarge)")
-	cmd.Flags().StringVar(&checkDatascalePrefix, "prefix", "/etcdctl-check-datascale/", "The prefix for writing the datascale check's keys.")
-	cmd.Flags().BoolVar(&autoCompact, "auto-compact", false, "Compact storage with last revision after test is finished.")
-	cmd.Flags().BoolVar(&autoDefrag, "auto-defrag", false, "Defragment storage after test is finished.")
+	cmd.Flags().StringVar(&checkDatascaleLoad, "load", "s", "数据刻度检查的工作负载模型.接受工作负载: s(small), m(medium), l(large), xl(xLarge)")
+	cmd.Flags().StringVar(&checkDatascalePrefix, "prefix", "/etcdctl-check-datascale/", "用于写入数据刻度校验键的前缀.")
+	cmd.Flags().BoolVar(&autoCompact, "auto-compact", false, "测试完成后压缩修订版本")
+	cmd.Flags().BoolVar(&autoDefrag, "auto-defrag", false, "测试完成后碎片整理")
 
 	return cmd
 }
 
 // newCheckDatascaleCommand executes the "check datascale" command.
 func newCheckDatascaleCommand(cmd *cobra.Command, args []string) {
-	var checkDatascaleAlias = map[string]string{
+	checkDatascaleAlias := map[string]string{
 		"s": "s", "small": "s",
 		"m": "m", "medium": "m",
 		"l": "l", "large": "l",
@@ -330,7 +337,7 @@ func newCheckDatascaleCommand(cmd *cobra.Command, args []string) {
 	cc := clientConfigFromCmd(cmd)
 	clients := make([]*v3.Client, cfg.clients)
 	for i := 0; i < cfg.clients; i++ {
-		clients[i] = mustClient(cc)
+		clients[i] = cc.mustClient()
 	}
 
 	// get endpoints
@@ -361,12 +368,13 @@ func newCheckDatascaleCommand(cmd *cobra.Command, args []string) {
 	// get the process_resident_memory_bytes and process_virtual_memory_bytes before the put operations
 	bytesBefore := endpointMemoryMetrics(eps[0], sec)
 	if bytesBefore == 0 {
-		fmt.Println("FAIL: Could not read process_resident_memory_bytes before the put operations.")
+		fmt.Println("FAIL: 在put操作之前无法读取process_resident_memory_bytes.")
 		os.Exit(cobrautl.ExitError)
 	}
 
-	fmt.Println(fmt.Sprintf("Start data scale check for work load [%v key-value pairs, %v bytes per key-value, %v concurrent clients].", cfg.limit, cfg.kvSize, cfg.clients))
+	fmt.Println(fmt.Sprintf("启动工作负载的数据规模检查[%v key-value pairs, %v bytes per key-value, %v concurrent clients].", cfg.limit, cfg.kvSize, cfg.clients))
 	bar := pb.New(cfg.limit)
+	bar.Format("Bom !")
 	bar.Start()
 
 	for i := range clients {

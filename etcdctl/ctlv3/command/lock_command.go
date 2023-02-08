@@ -23,9 +23,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/client/v3/concurrency"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
+	clientv3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
+
+	"github.com/ls-2018/etcd_cn/client_sdk/v3/concurrency"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 
 	"github.com/spf13/cobra"
 )
@@ -36,7 +37,7 @@ var lockTTL = 10
 func NewLockCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "lock <lockname> [exec-command arg1 arg2 ...]",
-		Short: "Acquires a named lock",
+		Short: "获取命名锁",
 		Run:   lockCommandFunc,
 	}
 	c.Flags().IntVarP(&lockTTL, "ttl", "", lockTTL, "timeout for session")

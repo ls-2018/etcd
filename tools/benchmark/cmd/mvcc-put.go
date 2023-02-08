@@ -21,9 +21,9 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"go.etcd.io/etcd/pkg/v3/report"
-	"go.etcd.io/etcd/pkg/v3/traceutil"
-	"go.etcd.io/etcd/server/v3/lease"
+	"github.com/ls-2018/etcd_cn/etcd/lease"
+	"github.com/ls-2018/etcd_cn/pkg/report"
+	"github.com/ls-2018/etcd_cn/pkg/traceutil"
 
 	"github.com/spf13/cobra"
 )
@@ -56,7 +56,6 @@ func init() {
 	// TODO: after the PR https://github.com/spf13/cobra/pull/220 is merged, the below pprof related flags should be moved to RootCmd
 	mvccPutCmd.Flags().StringVar(&cpuProfPath, "cpuprofile", "", "the path of file for storing cpu profile result")
 	mvccPutCmd.Flags().StringVar(&memProfPath, "memprofile", "", "the path of file for storing heap profile result")
-
 }
 
 func createBytesSlice(bytesN, sliceN int) [][]byte {

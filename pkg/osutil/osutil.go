@@ -20,10 +20,8 @@ import (
 	"strings"
 )
 
-var (
-	// support to override setting SIG_DFL so tests don't terminate early
-	setDflSignal = dflSignal
-)
+// support to override setting SIG_DFL so tests don't terminate early
+var setDflSignal = dflSignal
 
 func Unsetenv(key string) error {
 	envs := os.Environ()

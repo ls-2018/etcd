@@ -18,11 +18,10 @@ import (
 	"fmt"
 	"strings"
 
-	"go.etcd.io/etcd/etcdutl/v3/snapshot"
+	"github.com/ls-2018/etcd_cn/etcdutl/snapshot"
 )
 
-type simplePrinter struct {
-}
+type simplePrinter struct{}
 
 func (s *simplePrinter) DBStatus(ds snapshot.Status) {
 	_, rows := makeDBStatusTable(ds)

@@ -19,11 +19,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
 	"sync"
 	"time"
+
+	cm "github.com/ls-2018/etcd_cn/code_debug/conn"
 )
 
 type bridgeConn struct {
@@ -73,7 +76,7 @@ func timeBridge(b *bridgeConn) {
 
 func blackhole(b *bridgeConn) {
 	log.Println("blackholing connection", b.String())
-	io.Copy(io.Discard, b.in)
+	io.Copy(ioutil.Discard, b.in)
 	b.Close()
 }
 
@@ -186,8 +189,10 @@ type config struct {
 	rxDelay string
 }
 
-type acceptFaultFunc func()
-type connFaultFunc func(*bridgeConn)
+type (
+	acceptFaultFunc func()
+	connFaultFunc   func(*bridgeConn)
+)
 
 func main() {
 	var cfg config
@@ -206,8 +211,8 @@ func main() {
 	flag.BoolVar(&cfg.corruptSend, "corrupt-send", false, "corrupt packets sent to destination")
 	flag.BoolVar(&cfg.reorder, "reorder", false, "reorder packet delivery")
 
-	flag.StringVar(&cfg.txDelay, "tx-delay", "0", "duration to delay client transmission to server")
-	flag.StringVar(&cfg.rxDelay, "rx-delay", "0", "duration to delay client receive from server")
+	flag.StringVar(&cfg.txDelay, "tx-delay", "0", "duration to delay client transmission to etcd")
+	flag.StringVar(&cfg.rxDelay, "rx-delay", "0", "duration to delay client receive from etcd")
 
 	flag.Parse()
 
@@ -238,7 +243,6 @@ func main() {
 				log.Fatal(err)
 			}
 			l = newListener
-
 		}
 		acceptFaults = append(acceptFaults, f)
 	}
@@ -303,7 +307,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-
+		cm.PrintConn("main", conn)
 		r := rand.Intn(len(connFaults))
 		if rand.Intn(100) >= int(100.0*cfg.connFaultRate) {
 			r = 0

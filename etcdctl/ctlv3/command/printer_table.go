@@ -17,7 +17,7 @@ package command
 import (
 	"os"
 
-	v3 "go.etcd.io/etcd/client/v3"
+	v3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
 
 	"github.com/olekukonko/tablewriter"
 )
@@ -34,6 +34,7 @@ func (tp *tablePrinter) MemberList(r v3.MemberListResponse) {
 	table.SetAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
 }
+
 func (tp *tablePrinter) EndpointHealth(r []epHealth) {
 	hdr, rows := makeEndpointHealthTable(r)
 	table := tablewriter.NewWriter(os.Stdout)
@@ -44,6 +45,7 @@ func (tp *tablePrinter) EndpointHealth(r []epHealth) {
 	table.SetAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
 }
+
 func (tp *tablePrinter) EndpointStatus(r []epStatus) {
 	hdr, rows := makeEndpointStatusTable(r)
 	table := tablewriter.NewWriter(os.Stdout)
@@ -54,6 +56,7 @@ func (tp *tablePrinter) EndpointStatus(r []epStatus) {
 	table.SetAlignment(tablewriter.ALIGN_RIGHT)
 	table.Render()
 }
+
 func (tp *tablePrinter) EndpointHashKV(r []epHashKV) {
 	hdr, rows := makeEndpointHashKVTable(r)
 	table := tablewriter.NewWriter(os.Stdout)

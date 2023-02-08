@@ -19,11 +19,11 @@ import (
 	"fmt"
 	"time"
 
-	v3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/report"
+	v3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
+	"github.com/ls-2018/etcd_cn/pkg/report"
 
-	"github.com/cheggaaa/pb/v3"
 	"github.com/spf13/cobra"
+	"gopkg.in/cheggaaa/pb.v1"
 )
 
 var leaseKeepaliveCmd = &cobra.Command{
@@ -33,9 +33,7 @@ var leaseKeepaliveCmd = &cobra.Command{
 	Run: leaseKeepaliveFunc,
 }
 
-var (
-	leaseKeepaliveTotal int
-)
+var leaseKeepaliveTotal int
 
 func init() {
 	RootCmd.AddCommand(leaseKeepaliveCmd)
@@ -47,6 +45,7 @@ func leaseKeepaliveFunc(cmd *cobra.Command, args []string) {
 	clients := mustCreateClients(totalClients, totalConns)
 
 	bar = pb.New(leaseKeepaliveTotal)
+	bar.Format("Bom !")
 	bar.Start()
 
 	r := newReport()

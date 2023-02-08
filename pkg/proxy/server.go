@@ -27,7 +27,9 @@ import (
 	"sync"
 	"time"
 
-	"go.etcd.io/etcd/client/pkg/v3/transport"
+	cm "github.com/ls-2018/etcd_cn/code_debug/conn"
+
+	"github.com/ls-2018/etcd_cn/client_sdk/pkg/transport"
 
 	humanize "github.com/dustin/go-humanize"
 	"go.uber.org/zap"
@@ -37,9 +39,18 @@ var (
 	defaultDialTimeout   = 3 * time.Second
 	defaultBufferSize    = 48 * 1024
 	defaultRetryInterval = 10 * time.Millisecond
+	defaultLogger        *zap.Logger
 )
 
-// Server defines proxy server layer that simulates common network faults:
+func init() {
+	var err error
+	defaultLogger, err = zap.NewProduction()
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Server defines proxy etcd layer that simulates common network faults:
 // latency spikes and packet drop or corruption. The proxy overhead is very
 // small overhead (<500μs per request). Please run tests to compute actual
 // overhead.
@@ -128,7 +139,7 @@ type Server interface {
 	ResetListener() error
 }
 
-// ServerConfig defines proxy server configuration.
+// ServerConfig defines proxy etcd configuration.
 type ServerConfig struct {
 	Logger        *zap.Logger
 	From          url.URL
@@ -230,6 +241,9 @@ func NewServer(cfg ServerConfig) Server {
 	}
 	if s.retryInterval == 0 {
 		s.retryInterval = defaultRetryInterval
+	}
+	if s.lg == nil {
+		s.lg = defaultLogger
 	}
 
 	close(s.pauseAcceptc)
@@ -352,7 +366,7 @@ func (s *server) listenAndServe() {
 
 			continue
 		}
-
+		cm.PrintConn("server", in)
 		var out net.Conn
 		if !s.tlsInfo.Empty() {
 			var tp *http.Transport

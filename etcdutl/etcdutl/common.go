@@ -15,15 +15,13 @@
 package etcdutl
 
 import (
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	"go.etcd.io/etcd/client/pkg/v3/logutil"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
 )
 
 func GetLogger() *zap.Logger {
-	config := logutil.DefaultZapLoggerConfig
+	config := zap.NewProductionConfig()
 	config.Encoding = "console"
 	config.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
 	lg, err := config.Build()

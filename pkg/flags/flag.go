@@ -25,11 +25,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// SetFlagsFromEnv parses all registered flags in the given flagset,
-// and if they are not already set it attempts to set their values from
-// environment variables. Environment variables take the name of the flag but
-// are UPPERCASE, have the given prefix  and any dashes are replaced by
-// underscores - for example: some-flag => ETCD_SOME_FLAG
+// SetFlagsFromEnv
+
+// 环境变量采用flag的名称,但为大写字母,有给定的前缀,任何破折号都由下划线代替 - 例如:Some-flag => ETCD_SOME_FLAG
 func SetFlagsFromEnv(lg *zap.Logger, prefix string, fs *flag.FlagSet) error {
 	var err error
 	alreadySet := make(map[string]bool)
@@ -42,6 +40,7 @@ func SetFlagsFromEnv(lg *zap.Logger, prefix string, fs *flag.FlagSet) error {
 			err = serr
 		}
 	})
+	// usedEnvKey 环境变量中有值,但是命令行没有设置的 并将其设置到了flagSet
 	verifyEnv(lg, prefix, usedEnvKey, alreadySet)
 	return err
 }
@@ -64,9 +63,9 @@ func SetPflagsFromEnv(lg *zap.Logger, prefix string, fs *pflag.FlagSet) error {
 	return err
 }
 
-// FlagToEnv converts flag string to upper-case environment variable key string.
+// FlagToEnv 将标志字符串转换为大写的环境变量密钥字符串.
 func FlagToEnv(prefix, name string) string {
-	return prefix + "_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+	return prefix + "_" + strings.ToUpper(strings.Replace(name, "-", "_", -1))
 }
 
 func verifyEnv(lg *zap.Logger, prefix string, usedEnvKey, alreadySet map[string]bool) {
@@ -74,7 +73,7 @@ func verifyEnv(lg *zap.Logger, prefix string, usedEnvKey, alreadySet map[string]
 		kv := strings.SplitN(env, "=", 2)
 		if len(kv) != 2 {
 			if lg != nil {
-				lg.Warn("found invalid environment variable", zap.String("environment-variable", env))
+				lg.Warn("发现无效的环境变量", zap.String("environment-variable", env))
 			}
 		}
 		if usedEnvKey[kv[0]] {
@@ -83,14 +82,13 @@ func verifyEnv(lg *zap.Logger, prefix string, usedEnvKey, alreadySet map[string]
 		if alreadySet[kv[0]] {
 			if lg != nil {
 				lg.Fatal(
-					"conflicting environment variable is shadowed by corresponding command-line flag (either unset environment variable or disable flag))",
-					zap.String("environment-variable", kv[0]),
+					"冲突的环境变量被相应的命令行标志所掩盖(取消环境变量或禁用标志)", zap.String("environment-variable", kv[0]),
 				)
 			}
 		}
 		if strings.HasPrefix(env, prefix+"_") {
 			if lg != nil {
-				lg.Warn("unrecognized environment variable", zap.String("environment-variable", env))
+				lg.Warn("没有注册的环境变量", zap.String("environment-variable", env))
 			}
 		}
 	}
@@ -107,14 +105,10 @@ func setFlagFromEnv(lg *zap.Logger, fs flagSetter, prefix, fname string, usedEnv
 		if val != "" {
 			usedEnvKey[key] = true
 			if serr := fs.Set(fname, val); serr != nil {
-				return fmt.Errorf("invalid value %q for %s: %v", val, key, serr)
+				return fmt.Errorf("无效的值 %q for %s: %v", val, key, serr)
 			}
 			if log && lg != nil {
-				lg.Info(
-					"recognized and used environment variable",
-					zap.String("variable-name", key),
-					zap.String("variable-value", val),
-				)
+				lg.Info("确认和使用的环境变量", zap.String("variable-name", key), zap.String("variable-value", val))
 			}
 		}
 	}

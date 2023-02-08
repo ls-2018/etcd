@@ -21,6 +21,7 @@ package httputil
 
 import (
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 )
@@ -30,13 +31,11 @@ import (
 // therefore available for reuse.
 // Borrowed from golang/net/context/ctxhttp/cancelreq.go.
 func GracefulClose(resp *http.Response) {
-	io.Copy(io.Discard, resp.Body)
+	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
 }
 
-// GetHostname returns the hostname from request Host field.
-// It returns empty string, if Host field contains invalid
-// value (e.g. "localhost:::" with too many colons).
+// GetHostname 获取请求的主机名
 func GetHostname(req *http.Request) string {
 	if req == nil {
 		return ""

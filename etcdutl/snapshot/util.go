@@ -19,8 +19,8 @@ import (
 )
 
 type revision struct {
-	main int64
-	sub  int64
+	main int64 // 一个全局递增的主版本号,随put/txn/delete事务递增,一个事务内的key main版本号是一致的
+	sub  int64 // 一个事务内的子版本号,从0开始随事务内put/delete操作递增
 }
 
 func bytesToRev(bytes []byte) revision {

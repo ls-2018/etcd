@@ -17,17 +17,16 @@ package command
 import (
 	"fmt"
 
+	"github.com/ls-2018/etcd_cn/offical/api/v3/v3rpc/rpctypes"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 	"github.com/spf13/cobra"
-
-	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
 )
 
 // NewAuthCommand returns the cobra command for "auth".
 func NewAuthCommand() *cobra.Command {
 	ac := &cobra.Command{
 		Use:   "auth <enable or disable>",
-		Short: "Enable or disable authentication",
+		Short: "启用或禁用身份验证",
 	}
 
 	ac.AddCommand(newAuthEnableCommand())
@@ -40,7 +39,7 @@ func NewAuthCommand() *cobra.Command {
 func newAuthStatusCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: "Returns authentication status",
+		Short: "返回验证状态",
 		Run:   authStatusCommandFunc,
 	}
 }
@@ -48,7 +47,7 @@ func newAuthStatusCommand() *cobra.Command {
 // authStatusCommandFunc executes the "auth status" command.
 func authStatusCommandFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 0 {
-		cobrautl.ExitWithError(cobrautl.ExitBadArgs, fmt.Errorf("auth status command does not accept any arguments"))
+		cobrautl.ExitWithError(cobrautl.ExitBadArgs, fmt.Errorf("auth status命令不接受任何参数"))
 	}
 
 	ctx, cancel := commandCtx(cmd)
@@ -64,7 +63,7 @@ func authStatusCommandFunc(cmd *cobra.Command, args []string) {
 func newAuthEnableCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable",
-		Short: "Enables authentication",
+		Short: "启用身份验证",
 		Run:   authEnableCommandFunc,
 	}
 }
@@ -72,7 +71,7 @@ func newAuthEnableCommand() *cobra.Command {
 // authEnableCommandFunc executes the "auth enable" command.
 func authEnableCommandFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 0 {
-		cobrautl.ExitWithError(cobrautl.ExitBadArgs, fmt.Errorf("auth enable command does not accept any arguments"))
+		cobrautl.ExitWithError(cobrautl.ExitBadArgs, fmt.Errorf("auth enable命令不接受任何参数"))
 	}
 
 	ctx, cancel := commandCtx(cmd)
@@ -96,13 +95,13 @@ func authEnableCommandFunc(cmd *cobra.Command, args []string) {
 		cobrautl.ExitWithError(cobrautl.ExitError, err)
 	}
 
-	fmt.Println("Authentication Enabled")
+	fmt.Println("身份验证启用")
 }
 
 func newAuthDisableCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "disable",
-		Short: "Disables authentication",
+		Short: "禁用身份验证",
 		Run:   authDisableCommandFunc,
 	}
 }
@@ -110,7 +109,7 @@ func newAuthDisableCommand() *cobra.Command {
 // authDisableCommandFunc executes the "auth disable" command.
 func authDisableCommandFunc(cmd *cobra.Command, args []string) {
 	if len(args) != 0 {
-		cobrautl.ExitWithError(cobrautl.ExitBadArgs, fmt.Errorf("auth disable command does not accept any arguments"))
+		cobrautl.ExitWithError(cobrautl.ExitBadArgs, fmt.Errorf("auth disable命令不接受任何参数"))
 	}
 
 	ctx, cancel := commandCtx(cmd)
@@ -120,5 +119,5 @@ func authDisableCommandFunc(cmd *cobra.Command, args []string) {
 		cobrautl.ExitWithError(cobrautl.ExitError, err)
 	}
 
-	fmt.Println("Authentication Disabled")
+	fmt.Println("身份验证禁用")
 }

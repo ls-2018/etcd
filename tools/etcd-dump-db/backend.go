@@ -19,14 +19,14 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"go.uber.org/zap"
+	"github.com/ls-2018/etcd_cn/etcd/mvcc/buckets"
+	"github.com/ls-2018/etcd_cn/offical/api/v3/authpb"
+
+	"github.com/ls-2018/etcd_cn/etcd/lease/leasepb"
+	"github.com/ls-2018/etcd_cn/etcd/mvcc/backend"
+	"github.com/ls-2018/etcd_cn/offical/api/v3/mvccpb"
 
 	bolt "go.etcd.io/bbolt"
-	"go.etcd.io/etcd/api/v3/authpb"
-	"go.etcd.io/etcd/api/v3/mvccpb"
-	"go.etcd.io/etcd/server/v3/lease/leasepb"
-	"go.etcd.io/etcd/server/v3/storage/backend"
-	"go.etcd.io/etcd/server/v3/storage/schema"
 )
 
 func snapDir(dataDir string) string {
@@ -34,7 +34,7 @@ func snapDir(dataDir string) string {
 }
 
 func getBuckets(dbPath string) (buckets []string, err error) {
-	db, derr := bolt.Open(dbPath, 0600, &bolt.Options{Timeout: flockTimeout})
+	db, derr := bolt.Open(dbPath, 0o600, &bolt.Options{Timeout: flockTimeout})
 	if derr != nil {
 		return nil, fmt.Errorf("failed to open bolt DB %v", derr)
 	}
@@ -53,19 +53,17 @@ func getBuckets(dbPath string) (buckets []string, err error) {
 
 type decoder func(k, v []byte)
 
-// key is the bucket name, and value is the function to decode K/V in the bucket.
 var decoders = map[string]decoder{
 	"key":       keyDecoder,
 	"lease":     leaseDecoder,
 	"auth":      authDecoder,
 	"authRoles": authRolesDecoder,
 	"authUsers": authUsersDecoder,
-	"meta":      metaDecoder,
 }
 
 type revision struct {
-	main int64
-	sub  int64
+	main int64 // 一个全局递增的主版本号,随put/txn/delete事务递增,一个事务内的key main版本号是一致的
+	sub  int64 // 一个事务内的子版本号,从0开始随事务内put/delete操作递增
 }
 
 func bytesToRev(bytes []byte) revision {
@@ -73,10 +71,6 @@ func bytesToRev(bytes []byte) revision {
 		main: int64(binary.BigEndian.Uint64(bytes[0:8])),
 		sub:  int64(binary.BigEndian.Uint64(bytes[9:])),
 	}
-}
-
-func defaultDecoder(k, v []byte) {
-	fmt.Printf("key=%q, value=%q\n", k, v)
 }
 
 func keyDecoder(k, v []byte) {
@@ -90,7 +84,7 @@ func keyDecoder(k, v []byte) {
 
 func bytesToLeaseID(bytes []byte) int64 {
 	if len(bytes) != 8 {
-		panic(fmt.Errorf("lease ID must be 8-byte"))
+		panic(fmt.Errorf("lease ID必须是8-byte"))
 	}
 	return int64(binary.BigEndian.Uint64(bytes))
 }
@@ -101,7 +95,7 @@ func leaseDecoder(k, v []byte) {
 	if err := lpb.Unmarshal(v); err != nil {
 		panic(err)
 	}
-	fmt.Printf("lease ID=%016x, TTL=%ds, remaining TTL=%ds\n", leaseID, lpb.TTL, lpb.RemainingTTL)
+	fmt.Printf("lease ID=%016x, TTL=%ds\n", leaseID, lpb.TTL)
 }
 
 func authDecoder(k, v []byte) {
@@ -128,22 +122,11 @@ func authUsersDecoder(k, v []byte) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("user=%q, roles=%q, option=%v\n", user.Name, user.Roles, user.Options)
-}
-
-func metaDecoder(k, v []byte) {
-	if string(k) == string(schema.MetaConsistentIndexKeyName) || string(k) == string(schema.MetaTermKeyName) {
-		fmt.Printf("key=%q, value=%v\n", k, binary.BigEndian.Uint64(v))
-	} else if string(k) == string(schema.ScheduledCompactKeyName) || string(k) == string(schema.FinishedCompactKeyName) {
-		rev := bytesToRev(v)
-		fmt.Printf("key=%q, value=%v\n", k, rev)
-	} else {
-		defaultDecoder(k, v)
-	}
+	fmt.Printf("user=%q, roles=%q, password=%q, option=%v\n", user.Name, user.Roles, string(user.Password), user.Options)
 }
 
 func iterateBucket(dbPath, bucket string, limit uint64, decode bool) (err error) {
-	db, err := bolt.Open(dbPath, 0600, &bolt.Options{Timeout: flockTimeout})
+	db, err := bolt.Open(dbPath, 0o600, &bolt.Options{Timeout: flockTimeout})
 	if err != nil {
 		return fmt.Errorf("failed to open bolt DB %v", err)
 	}
@@ -164,7 +147,7 @@ func iterateBucket(dbPath, bucket string, limit uint64, decode bool) (err error)
 			if dec, ok := decoders[bucket]; decode && ok {
 				dec(k, v)
 			} else {
-				defaultDecoder(k, v)
+				fmt.Printf("key=%q, value=%q\n", k, v)
 			}
 
 			limit--
@@ -179,8 +162,8 @@ func iterateBucket(dbPath, bucket string, limit uint64, decode bool) (err error)
 }
 
 func getHash(dbPath string) (hash uint32, err error) {
-	b := backend.NewDefaultBackend(zap.NewNop(), dbPath)
-	return b.Hash(schema.DefaultIgnores)
+	b := backend.NewDefaultBackend(dbPath)
+	return b.Hash(buckets.DefaultIgnores)
 }
 
 // TODO: revert by revision and find specified hash value

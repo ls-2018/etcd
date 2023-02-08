@@ -20,10 +20,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cobra"
+	clientv3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -35,7 +35,7 @@ var (
 func NewMemberCommand() *cobra.Command {
 	mc := &cobra.Command{
 		Use:   "member <subcommand>",
-		Short: "Membership related commands",
+		Short: "节点相关的命令",
 	}
 
 	mc.AddCommand(NewMemberAddCommand())
@@ -51,13 +51,13 @@ func NewMemberCommand() *cobra.Command {
 func NewMemberAddCommand() *cobra.Command {
 	cc := &cobra.Command{
 		Use:   "add <memberName> [options]",
-		Short: "Adds a member into the cluster",
+		Short: "添加一个节点",
 
 		Run: memberAddCommandFunc,
 	}
 
-	cc.Flags().StringVar(&memberPeerURLs, "peer-urls", "", "comma separated peer URLs for the new member.")
-	cc.Flags().BoolVar(&isLearner, "learner", false, "indicates if the new member is raft learner")
+	cc.Flags().StringVar(&memberPeerURLs, "peer-urls", "", "用逗号分隔新成员的对等url.")
+	cc.Flags().BoolVar(&isLearner, "learner", false, "表示新成员是否为learner")
 
 	return cc
 }
@@ -66,7 +66,7 @@ func NewMemberAddCommand() *cobra.Command {
 func NewMemberRemoveCommand() *cobra.Command {
 	cc := &cobra.Command{
 		Use:   "remove <memberID>",
-		Short: "Removes a member from the cluster",
+		Short: "从集群中移除成员",
 
 		Run: memberRemoveCommandFunc,
 	}
@@ -78,7 +78,7 @@ func NewMemberRemoveCommand() *cobra.Command {
 func NewMemberUpdateCommand() *cobra.Command {
 	cc := &cobra.Command{
 		Use:   "update <memberID> [options]",
-		Short: "Updates a member in the cluster",
+		Short: "更新节点通信地址",
 
 		Run: memberUpdateCommandFunc,
 	}
@@ -92,12 +92,8 @@ func NewMemberUpdateCommand() *cobra.Command {
 func NewMemberListCommand() *cobra.Command {
 	cc := &cobra.Command{
 		Use:   "list",
-		Short: "Lists all members in the cluster",
-		Long: `When --write-out is set to simple, this command prints out comma-separated member lists for each endpoint.
-The items in the lists are ID, Status, Name, Peer Addrs, Client Addrs, Is Learner.
-`,
-
-		Run: memberListCommandFunc,
+		Short: "显示集群所有成员",
+		Run:   memberListCommandFunc,
 	}
 
 	return cc
@@ -107,11 +103,8 @@ The items in the lists are ID, Status, Name, Peer Addrs, Client Addrs, Is Learne
 func NewMemberPromoteCommand() *cobra.Command {
 	cc := &cobra.Command{
 		Use:   "promote <memberID>",
-		Short: "Promotes a non-voting member in the cluster",
-		Long: `Promotes a non-voting learner member to a voting one in the cluster.
-`,
-
-		Run: memberPromoteCommandFunc,
+		Short: "提升一个learner节点",
+		Run:   memberPromoteCommandFunc,
 	}
 
 	return cc
@@ -158,7 +151,7 @@ func memberAddCommandFunc(cmd *cobra.Command, args []string) {
 	display.MemberAdd(*resp)
 
 	if _, ok := (display).(*simplePrinter); ok {
-		var conf []string
+		conf := []string{}
 		for _, memb := range resp.Members {
 			for _, u := range memb.PeerURLs {
 				n := memb.Name
@@ -173,7 +166,7 @@ func memberAddCommandFunc(cmd *cobra.Command, args []string) {
 		fmt.Printf("ETCD_NAME=%q\n", newMemberName)
 		fmt.Printf("ETCD_INITIAL_CLUSTER=%q\n", strings.Join(conf, ","))
 		fmt.Printf("ETCD_INITIAL_ADVERTISE_PEER_URLS=%q\n", memberPeerURLs)
-		fmt.Print("ETCD_INITIAL_CLUSTER_STATE=\"existing\"\n")
+		fmt.Printf("ETCD_INITIAL_CLUSTER_STATE=\"existing\"\n")
 	}
 }
 

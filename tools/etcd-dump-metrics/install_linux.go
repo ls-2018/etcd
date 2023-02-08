@@ -13,18 +13,18 @@
 // limitations under the License.
 
 //go:build linux
+// +build linux
 
 package main
 
 import (
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
-	"os"
 	"os/exec"
 	"path/filepath"
 
-	"go.etcd.io/etcd/client/pkg/v3/fileutil"
+	"github.com/ls-2018/etcd_cn/client_sdk/pkg/fileutil"
 )
 
 const downloadURL = `https://storage.googleapis.com/etcd/%s/etcd-%s-linux-amd64.tar.gz`
@@ -38,13 +38,13 @@ func install(ver, dir string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	d, err := io.ReadAll(resp.Body)
+	d, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
 
 	tarPath := filepath.Join(dir, "etcd.tar.gz")
-	if err = os.WriteFile(tarPath, d, fileutil.PrivateFileMode); err != nil {
+	if err = ioutil.WriteFile(tarPath, d, fileutil.PrivateFileMode); err != nil {
 		return "", err
 	}
 

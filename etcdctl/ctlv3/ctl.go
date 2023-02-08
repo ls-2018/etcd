@@ -12,23 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package ctlv3 contains the main entry point for the etcdctl for v3 API.
+//  ctlv3 包含用于v3 API的etcdctl的主入口点.
 package ctlv3
 
 import (
-	"os"
 	"time"
 
-	"go.etcd.io/etcd/api/v3/version"
-	"go.etcd.io/etcd/etcdctl/v3/ctlv3/command"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
+	"github.com/ls-2018/etcd_cn/etcdctl/ctlv3/command"
+	"github.com/ls-2018/etcd_cn/offical/api/v3/version"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 
 	"github.com/spf13/cobra"
 )
 
 const (
 	cliName        = "etcdctl"
-	cliDescription = "A simple command line client for etcd3."
+	cliDescription = "etcd3的一个简单的命令行客户机."
 
 	defaultDialTimeout      = 2 * time.Second
 	defaultCommandTimeOut   = 5 * time.Second
@@ -36,48 +35,41 @@ const (
 	defaultKeepAliveTimeOut = 6 * time.Second
 )
 
-var (
-	globalFlags = command.GlobalFlags{}
-)
+var globalFlags = command.GlobalFlags{}
 
-var (
-	rootCmd = &cobra.Command{
-		Use:        cliName,
-		Short:      cliDescription,
-		SuggestFor: []string{"etcdctl"},
-	}
-)
+var rootCmd = &cobra.Command{
+	Use:        cliName,
+	Short:      cliDescription,
+	SuggestFor: []string{"etcdctl"},
+}
 
 func init() {
-	rootCmd.PersistentFlags().StringSliceVar(&globalFlags.Endpoints, "endpoints", []string{"127.0.0.1:2379"}, "gRPC endpoints")
-	rootCmd.PersistentFlags().BoolVar(&globalFlags.Debug, "debug", false, "enable client-side debug logging")
+	rootCmd.PersistentFlags().StringSliceVar(&globalFlags.Endpoints, "endpoints", []string{"127.0.0.1:2379"}, "gRPC端点")
+	rootCmd.PersistentFlags().BoolVar(&globalFlags.Debug, "debug", false, "启用客户端调试日志记录")
 
-	rootCmd.PersistentFlags().StringVarP(&globalFlags.OutputFormat, "write-out", "w", "simple", "set the output format (fields, json, protobuf, simple, table)")
-	rootCmd.PersistentFlags().BoolVar(&globalFlags.IsHex, "hex", false, "print byte strings as hex encoded strings")
-	rootCmd.RegisterFlagCompletionFunc("write-out", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		return []string{"fields", "json", "protobuf", "simple", "table"}, cobra.ShellCompDirectiveDefault
-	})
+	rootCmd.PersistentFlags().StringVarP(&globalFlags.OutputFormat, "write-out", "w", "simple", "设置输出格式 (fields, json, protobuf, simple, table)")
+	rootCmd.PersistentFlags().BoolVar(&globalFlags.IsHex, "hex", false, "以十六进制编码的字符串输出字节串")
 
-	rootCmd.PersistentFlags().DurationVar(&globalFlags.DialTimeout, "dial-timeout", defaultDialTimeout, "dial timeout for client connections")
-	rootCmd.PersistentFlags().DurationVar(&globalFlags.CommandTimeOut, "command-timeout", defaultCommandTimeOut, "timeout for short running command (excluding dial timeout)")
-	rootCmd.PersistentFlags().DurationVar(&globalFlags.KeepAliveTime, "keepalive-time", defaultKeepAliveTime, "keepalive time for client connections")
-	rootCmd.PersistentFlags().DurationVar(&globalFlags.KeepAliveTimeout, "keepalive-timeout", defaultKeepAliveTimeOut, "keepalive timeout for client connections")
+	rootCmd.PersistentFlags().DurationVar(&globalFlags.DialTimeout, "dial-timeout", defaultDialTimeout, "拨号客户端连接超时")
+	rootCmd.PersistentFlags().DurationVar(&globalFlags.CommandTimeOut, "command-timeout", defaultCommandTimeOut, "运行命令的超时（不包括拨号超时）.")
+	rootCmd.PersistentFlags().DurationVar(&globalFlags.KeepAliveTime, "keepalive-time", defaultKeepAliveTime, "客户端连接的存活时间")
+	rootCmd.PersistentFlags().DurationVar(&globalFlags.KeepAliveTimeout, "keepalive-timeout", defaultKeepAliveTimeOut, "客户端连接的Keepalive超时")
 
 	// TODO: secure by default when etcd enables secure gRPC by default.
-	rootCmd.PersistentFlags().BoolVar(&globalFlags.Insecure, "insecure-transport", true, "disable transport security for client connections")
-	rootCmd.PersistentFlags().BoolVar(&globalFlags.InsecureDiscovery, "insecure-discovery", true, "accept insecure SRV records describing cluster endpoints")
-	rootCmd.PersistentFlags().BoolVar(&globalFlags.InsecureSkipVerify, "insecure-skip-tls-verify", false, "skip server certificate verification (CAUTION: this option should be enabled only for testing purposes)")
-	rootCmd.PersistentFlags().StringVar(&globalFlags.TLS.CertFile, "cert", "", "identify secure client using this TLS certificate file")
-	rootCmd.PersistentFlags().StringVar(&globalFlags.TLS.KeyFile, "key", "", "identify secure client using this TLS key file")
-	rootCmd.PersistentFlags().StringVar(&globalFlags.TLS.TrustedCAFile, "cacert", "", "verify certificates of TLS-enabled secure servers using this CA bundle")
-	rootCmd.PersistentFlags().StringVar(&globalFlags.User, "user", "", "username[:password] for authentication (prompt if password is not supplied)")
-	rootCmd.PersistentFlags().StringVar(&globalFlags.Password, "password", "", "password for authentication (if this option is used, --user option shouldn't include password)")
-	rootCmd.PersistentFlags().StringVarP(&globalFlags.TLS.ServerName, "discovery-srv", "d", "", "domain name to query for SRV records describing cluster endpoints")
-	rootCmd.PersistentFlags().StringVarP(&globalFlags.DNSClusterServiceName, "discovery-srv-name", "", "", "service name to query when using DNS discovery")
+	rootCmd.PersistentFlags().BoolVar(&globalFlags.Insecure, "insecure-transport", true, "为客户端连接禁用传输安全性")
+	rootCmd.PersistentFlags().BoolVar(&globalFlags.InsecureDiscovery, "insecure-discovery", true, "接受描述集群端点的不安全的SRV记录")
+	rootCmd.PersistentFlags().BoolVar(&globalFlags.InsecureSkipVerify, "insecure-skip-tls-verify", false, "跳过 etcd 证书验证 (注意:该选项仅用于测试目的.）")
+	rootCmd.PersistentFlags().StringVar(&globalFlags.TLS.CertFile, "cert", "", "识别使用该TLS证书文件的安全客户端")
+	rootCmd.PersistentFlags().StringVar(&globalFlags.TLS.KeyFile, "key", "", "识别使用该TLS密钥文件的安全客户端")
+	rootCmd.PersistentFlags().StringVar(&globalFlags.TLS.TrustedCAFile, "cacert", "", "使用此CA包验证启用tls的安全服务器的证书")
+	rootCmd.PersistentFlags().StringVar(&globalFlags.User, "user", "", "username[:password]  (如果没有提供密码,则提示)")
+	rootCmd.PersistentFlags().StringVar(&globalFlags.Password, "password", "", "身份验证的密码(如果使用了这个选项,——user选项不应该包含密码)")
+	rootCmd.PersistentFlags().StringVarP(&globalFlags.TLS.ServerName, "discovery-srv", "d", "", "查询描述集群端点的SRV记录的域名")
+	rootCmd.PersistentFlags().StringVarP(&globalFlags.DNSClusterServiceName, "discovery-srv-name", "", "", "使用DNS发现时需要查询的服务名称")
 
 	rootCmd.AddCommand(
 		command.NewGetCommand(),
-		command.NewPutCommand(),
+		command.NewPutCommand(), // ✅
 		command.NewDelCommand(),
 		command.NewTxnCommand(),
 		command.NewCompactionCommand(),
@@ -97,8 +89,6 @@ func init() {
 		command.NewUserCommand(),
 		command.NewRoleCommand(),
 		command.NewCheckCommand(),
-		command.NewCompletionCommand(),
-		command.NewDowngradeCommand(),
 	)
 }
 
@@ -115,11 +105,7 @@ func Start() error {
 
 func MustStart() {
 	if err := Start(); err != nil {
-		if rootCmd.SilenceErrors {
-			cobrautl.ExitWithError(cobrautl.ExitError, err)
-		} else {
-			os.Exit(cobrautl.ExitError)
-		}
+		cobrautl.ExitWithError(cobrautl.ExitError, err)
 	}
 }
 

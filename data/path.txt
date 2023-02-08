@@ -1,0 +1,4 @@
+/debug/vars
+/version
+/metrics
+/health

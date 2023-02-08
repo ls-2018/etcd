@@ -38,7 +38,9 @@ func NewWeightedReport(r Report, precision string) Report {
 	}
 }
 
-func (wr *weightedReport) Results() chan<- Result { return wr.results }
+func (wr *weightedReport) Results() chan<- Result {
+	return wr.results
+}
 
 func (wr *weightedReport) Run() <-chan string {
 	donec := make(chan string, 2)

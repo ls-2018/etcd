@@ -21,7 +21,7 @@ import (
 	"os"
 	"strconv"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
+	clientv3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
 )
 
 type jsonPrinter struct {
@@ -37,7 +37,9 @@ func newJSONPrinter(isHex bool) printer {
 }
 
 func (p *jsonPrinter) EndpointHealth(r []epHealth) { printJSON(r) }
-func (p *jsonPrinter) EndpointStatus(r []epStatus) { printJSON(r) }
+func (p *jsonPrinter) EndpointStatus(r []epStatus) {
+	printJSON(r)
+}
 func (p *jsonPrinter) EndpointHashKV(r []epHashKV) { printJSON(r) }
 
 func (p *jsonPrinter) MemberList(r clientv3.MemberListResponse) {
@@ -67,7 +69,7 @@ func printMemberListWithHexJSON(r clientv3.MemberListResponse) {
 	b = strconv.AppendUint(nil, r.Header.MemberId, 16)
 	buffer.Write(b)
 	buffer.WriteString("\",\"raft_term\":")
-	b = strconv.AppendUint(nil, r.Header.RaftTerm, 10)
+	b = strconv.AppendUint(nil, r.Header.RaftTerm, 16)
 	buffer.Write(b)
 	buffer.WriteByte('}')
 	for i := 0; i < len(r.Members); i++ {
@@ -84,7 +86,7 @@ func printMemberListWithHexJSON(r clientv3.MemberListResponse) {
 			return
 		}
 		buffer.Write(b)
-		buffer.WriteString(",\"clientURLs\":")
+		buffer.WriteString(",\"clientURLS\":")
 		b, err = json.Marshal(r.Members[i].ClientURLs)
 		if err != nil {
 			return
@@ -97,5 +99,4 @@ func printMemberListWithHexJSON(r clientv3.MemberListResponse) {
 	}
 	buffer.WriteString("}")
 	fmt.Println(buffer.String())
-
 }

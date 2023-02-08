@@ -28,15 +28,10 @@ const (
 	defaultListElementLength = 64
 )
 
-// Wait is an interface that provides the ability to wait and trigger events that
-// are associated with IDs.
+// Wait 是一个接口提供等待和触发与ID相关的事件的能力.
 type Wait interface {
-	// Register waits returns a chan that waits on the given ID.
-	// The chan will be triggered when Trigger is called with
-	// the same ID.
-	Register(id uint64) <-chan interface{}
-	// Trigger triggers the waiting chans with the given ID.
-	Trigger(id uint64, x interface{})
+	Register(id uint64) <-chan interface{} // waits返回一个在给定ID上等待的chan.当Trigger以相同的ID被调用时这个chan将被触发.
+	Trigger(id uint64, x interface{})      // 触发具有给定ID的等待通道.设置结果
 	IsRegistered(id uint64) bool
 }
 
@@ -44,15 +39,15 @@ type list struct {
 	e []listElement
 }
 
+// 64个槽位 接收 响应
 type listElement struct {
 	l sync.RWMutex
-	m map[uint64]chan interface{}
+	m map[uint64]chan interface{} // 每个请求,以及待返回的channel
 }
 
-// New creates a Wait.
 func New() Wait {
 	res := list{
-		e: make([]listElement, defaultListElementLength),
+		e: make([]listElement, defaultListElementLength), // 64
 	}
 	for i := 0; i < len(res.e); i++ {
 		res.e[i].m = make(map[uint64]chan interface{})
@@ -61,14 +56,15 @@ func New() Wait {
 }
 
 func (w *list) Register(id uint64) <-chan interface{} {
-	idx := id % defaultListElementLength
+	idx := id % defaultListElementLength // 64
 	newCh := make(chan interface{}, 1)
 	w.e[idx].l.Lock()
 	defer w.e[idx].l.Unlock()
+	// 判断 请求存不存在
 	if _, ok := w.e[idx].m[id]; !ok {
 		w.e[idx].m[id] = newCh
 	} else {
-		log.Panicf("dup id %x", id)
+		log.Panicf("重复的 id %x", id)
 	}
 	return newCh
 }
@@ -106,5 +102,5 @@ func (w *waitWithResponse) Register(id uint64) <-chan interface{} {
 }
 func (w *waitWithResponse) Trigger(id uint64, x interface{}) {}
 func (w *waitWithResponse) IsRegistered(id uint64) bool {
-	panic("waitWithResponse.IsRegistered() shouldn't be called")
+	panic("waitWithResponse.IsRegistered() 不应该被调用")
 }

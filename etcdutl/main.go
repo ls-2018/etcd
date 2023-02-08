@@ -16,7 +16,7 @@
 package main
 
 import (
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 )
 
 func main() {
@@ -24,3 +24,7 @@ func main() {
 		cobrautl.ExitWithError(cobrautl.ExitError, err)
 	}
 }
+
+// snapshot status ../default.etcd/member/snap/bolt.db  --write-out=table
+// snapshot restore ./123
+// defrag --data-dir ../default.etcd

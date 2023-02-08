@@ -1,0 +1,20 @@
+apiVersion: etcd.cloud.tencent.com/v1beta1
+kind: EtcdMonitor
+metadata:
+  labels:
+    clusterName: gz-qcloud-etcd-03
+    region: gz
+  name: gz-qcloud-etcd-03-etcd-node-key-diff
+  namespace: gz
+spec:
+  clusterId: gz-qcloud-etcd-03
+  metricName: etcd-node-key-diff
+  metricProviderName: cruiser
+  name: gz-qcloud-etcd-03
+  productName: tke
+  region: gz
+  status:
+  records:
+    - endTime: "2021-02-25T11:22:26Z"
+  message: collectEtcdNodeKeyDiff,etcd cluster gz-qcloud-etcd-03,total key num is
+    122143,nodeKeyDiff is 0

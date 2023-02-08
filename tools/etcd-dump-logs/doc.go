@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// etcd-dump-logs is a program for analyzing etcd server write ahead logs.
+// etcd-dump-logs is a program for analyzing etcd etcd write ahead logs.
 package main

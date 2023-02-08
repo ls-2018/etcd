@@ -22,9 +22,10 @@ import (
 	"strconv"
 	"strings"
 
-	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
+	clientv3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
+
+	pb "github.com/ls-2018/etcd_cn/offical/etcdserverpb"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 
 	"github.com/spf13/cobra"
 )
@@ -34,8 +35,8 @@ var txnInteractive bool
 // NewTxnCommand returns the cobra command for "txn".
 func NewTxnCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "txn [options]",
-		Short: "Txn processes all the requests in one transaction",
+		Use:   "txn [options] ",
+		Short: "在一个事务里处理所有请求  c(\"a\") = \"22222\"",
 		Run:   txnCommandFunc,
 	}
 	cmd.Flags().BoolVarP(&txnInteractive, "interactive", "i", false, "Input transaction in interactive mode")
@@ -68,7 +69,7 @@ func txnCommandFunc(cmd *cobra.Command, args []string) {
 
 func promptInteractive(s string) {
 	if txnInteractive {
-		fmt.Println(s)
+		fmt.Println("promptInteractive--->", s)
 	}
 }
 
@@ -85,7 +86,7 @@ func readCompares(r *bufio.Reader) (cmps []clientv3.Cmp) {
 			break
 		}
 
-		cmp, err := ParseCompare(line)
+		cmp, err := parseCompare(line)
 		if err != nil {
 			cobrautl.ExitWithError(cobrautl.ExitInvalidInput, err)
 		}
@@ -119,7 +120,7 @@ func readOps(r *bufio.Reader) (ops []clientv3.Op) {
 }
 
 func parseRequestUnion(line string) (*clientv3.Op, error) {
-	args := Argify(line)
+	args := argify(line)
 	if len(args) < 2 {
 		return nil, fmt.Errorf("invalid txn compare request: %s", line)
 	}
@@ -153,7 +154,7 @@ func parseRequestUnion(line string) (*clientv3.Op, error) {
 	return &op, nil
 }
 
-func ParseCompare(line string) (*clientv3.Cmp, error) {
+func parseCompare(line string) (*clientv3.Cmp, error) {
 	var (
 		key string
 		op  string
@@ -164,7 +165,7 @@ func ParseCompare(line string) (*clientv3.Cmp, error) {
 	if len(lparenSplit) != 2 {
 		return nil, fmt.Errorf("malformed comparison: %s", line)
 	}
-
+	//   c("a") = "22222"
 	target := lparenSplit[0]
 	n, serr := fmt.Sscanf(lparenSplit[1], "%q) %s %q", &key, &op, &val)
 	if n != 3 {

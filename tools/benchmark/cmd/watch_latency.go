@@ -21,12 +21,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cheggaaa/pb/v3"
+	"github.com/ls-2018/etcd_cn/client_sdk/v3"
+	"github.com/ls-2018/etcd_cn/pkg/report"
+
 	"github.com/spf13/cobra"
 	"golang.org/x/time/rate"
-
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/report"
+	"gopkg.in/cheggaaa/pb.v1"
 )
 
 // watchLatencyCmd represents the watch latency command
@@ -67,6 +67,7 @@ func watchLatencyFunc(cmd *cobra.Command, args []string) {
 	}
 
 	bar = pb.New(watchLTotal)
+	bar.Format("Bom !")
 	bar.Start()
 
 	limiter := rate.NewLimiter(rate.Limit(watchLPutRate), watchLPutRate)

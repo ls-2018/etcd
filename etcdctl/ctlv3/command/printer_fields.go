@@ -17,16 +17,12 @@ package command
 import (
 	"fmt"
 
-	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
-	spb "go.etcd.io/etcd/api/v3/mvccpb"
-	"go.etcd.io/etcd/client/pkg/v3/types"
-	v3 "go.etcd.io/etcd/client/v3"
+	v3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
+	spb "github.com/ls-2018/etcd_cn/offical/api/v3/mvccpb"
+	pb "github.com/ls-2018/etcd_cn/offical/etcdserverpb"
 )
 
-type fieldsPrinter struct {
-	printer
-	isHex bool
-}
+type fieldsPrinter struct{ printer }
 
 func (p *fieldsPrinter) kv(pfx string, kv *spb.KeyValue) {
 	fmt.Printf("\"%sKey\" : %q\n", pfx, string(kv.Key))
@@ -34,27 +30,13 @@ func (p *fieldsPrinter) kv(pfx string, kv *spb.KeyValue) {
 	fmt.Printf("\"%sModRevision\" : %d\n", pfx, kv.ModRevision)
 	fmt.Printf("\"%sVersion\" : %d\n", pfx, kv.Version)
 	fmt.Printf("\"%sValue\" : %q\n", pfx, string(kv.Value))
-	if p.isHex {
-		fmt.Printf("\"%sLease\" : %016x\n", pfx, kv.Lease)
-	} else {
-		fmt.Printf("\"%sLease\" : %d\n", pfx, kv.Lease)
-	}
+	fmt.Printf("\"%sLease\" : %d\n", pfx, kv.Lease)
 }
 
 func (p *fieldsPrinter) hdr(h *pb.ResponseHeader) {
-	if p.isHex {
-		fmt.Println(`"ClusterID" :`, types.ID(h.ClusterId))
-		fmt.Println(`"MemberID" :`, types.ID(h.MemberId))
-	} else {
-		fmt.Println(`"ClusterID" :`, h.ClusterId)
-		fmt.Println(`"MemberID" :`, h.MemberId)
-	}
-	// Revision only makes sense for k/v responses. For other kinds of
-	// responses, i.e. MemberList, usually the revision isn't populated
-	// at all; so it would be better to hide this field in these cases.
-	if h.Revision > 0 {
-		fmt.Println(`"Revision" :`, h.Revision)
-	}
+	fmt.Println(`"ClusterID" :`, h.ClusterId)
+	fmt.Println(`"MemberID" :`, h.MemberId)
+	fmt.Println(`"Revision" :`, h.Revision)
 	fmt.Println(`"RaftTerm" :`, h.RaftTerm)
 }
 
@@ -85,16 +67,18 @@ func (p *fieldsPrinter) Put(r v3.PutResponse) {
 func (p *fieldsPrinter) Txn(r v3.TxnResponse) {
 	p.hdr(r.Header)
 	fmt.Println(`"Succeeded" :`, r.Succeeded)
-	for _, resp := range r.Responses {
-		switch v := resp.Response.(type) {
-		case *pb.ResponseOp_ResponseDeleteRange:
+	for _, r := range r.Responses {
+		if r.ResponseOp_ResponseDeleteRange != nil {
+			v := r.ResponseOp_ResponseDeleteRange
 			p.Del((v3.DeleteResponse)(*v.ResponseDeleteRange))
-		case *pb.ResponseOp_ResponsePut:
+		} else if r.ResponseOp_ResponsePut != nil {
+			v := r.ResponseOp_ResponsePut
 			p.Put((v3.PutResponse)(*v.ResponsePut))
-		case *pb.ResponseOp_ResponseRange:
+		} else if r.ResponseOp_ResponseRange != nil {
+			v := r.ResponseOp_ResponseRange
 			p.Get((v3.GetResponse)(*v.ResponseRange))
-		default:
-			fmt.Printf("\"Unknown\" : %q\n", fmt.Sprintf("%+v", v))
+		} else {
+			fmt.Printf("unexpected response %+v\n", r)
 		}
 	}
 }
@@ -112,11 +96,7 @@ func (p *fieldsPrinter) Watch(resp v3.WatchResponse) {
 
 func (p *fieldsPrinter) Grant(r v3.LeaseGrantResponse) {
 	p.hdr(r.ResponseHeader)
-	if p.isHex {
-		fmt.Printf("\"ID\" : %016x\n", r.ID)
-	} else {
-		fmt.Println(`"ID" :`, r.ID)
-	}
+	fmt.Println(`"ID" :`, r.ID)
 	fmt.Println(`"TTL" :`, r.TTL)
 }
 
@@ -126,21 +106,13 @@ func (p *fieldsPrinter) Revoke(id v3.LeaseID, r v3.LeaseRevokeResponse) {
 
 func (p *fieldsPrinter) KeepAlive(r v3.LeaseKeepAliveResponse) {
 	p.hdr(r.ResponseHeader)
-	if p.isHex {
-		fmt.Printf("\"ID\" : %016x\n", r.ID)
-	} else {
-		fmt.Println(`"ID" :`, r.ID)
-	}
+	fmt.Println(`"ID" :`, r.ID)
 	fmt.Println(`"TTL" :`, r.TTL)
 }
 
 func (p *fieldsPrinter) TimeToLive(r v3.LeaseTimeToLiveResponse, keys bool) {
 	p.hdr(r.ResponseHeader)
-	if p.isHex {
-		fmt.Printf("\"ID\" : %016x\n", r.ID)
-	} else {
-		fmt.Println(`"ID" :`, r.ID)
-	}
+	fmt.Println(`"ID" :`, r.ID)
 	fmt.Println(`"TTL" :`, r.TTL)
 	fmt.Println(`"GrantedTTL" :`, r.GrantedTTL)
 	for _, k := range r.Keys {
@@ -151,22 +123,14 @@ func (p *fieldsPrinter) TimeToLive(r v3.LeaseTimeToLiveResponse, keys bool) {
 func (p *fieldsPrinter) Leases(r v3.LeaseLeasesResponse) {
 	p.hdr(r.ResponseHeader)
 	for _, item := range r.Leases {
-		if p.isHex {
-			fmt.Printf("\"ID\" : %016x\n", item.ID)
-		} else {
-			fmt.Println(`"ID" :`, item.ID)
-		}
+		fmt.Println(`"ID" :`, item.ID)
 	}
 }
 
 func (p *fieldsPrinter) MemberList(r v3.MemberListResponse) {
 	p.hdr(r.Header)
 	for _, m := range r.Members {
-		if p.isHex {
-			fmt.Println(`"ID" :`, types.ID(m.ID))
-		} else {
-			fmt.Println(`"ID" :`, m.ID)
-		}
+		fmt.Println(`"ID" :`, m.ID)
 		fmt.Printf("\"Name\" : %q\n", m.Name)
 		for _, u := range m.PeerURLs {
 			fmt.Printf("\"PeerURL\" : %q\n", u)
@@ -193,9 +157,7 @@ func (p *fieldsPrinter) EndpointStatus(eps []epStatus) {
 	for _, ep := range eps {
 		p.hdr(ep.Resp.Header)
 		fmt.Printf("\"Version\" : %q\n", ep.Resp.Version)
-		fmt.Printf("\"StorageVersion\" : %q\n", ep.Resp.StorageVersion)
 		fmt.Println(`"DBSize" :`, ep.Resp.DbSize)
-		fmt.Println(`"DBSizeInUse" :`, ep.Resp.DbSizeInUse)
 		fmt.Println(`"Leader" :`, ep.Resp.Leader)
 		fmt.Println(`"IsLearner" :`, ep.Resp.IsLearner)
 		fmt.Println(`"RaftIndex" :`, ep.Resp.RaftIndex)
@@ -212,7 +174,6 @@ func (p *fieldsPrinter) EndpointHashKV(hs []epHashKV) {
 		p.hdr(h.Resp.Header)
 		fmt.Printf("\"Endpoint\" : %q\n", h.Ep)
 		fmt.Println(`"Hash" :`, h.Resp.Hash)
-		fmt.Println(`"HashRevision" :`, h.Resp.HashRevision)
 		fmt.Println()
 	}
 }
@@ -220,11 +181,7 @@ func (p *fieldsPrinter) EndpointHashKV(hs []epHashKV) {
 func (p *fieldsPrinter) Alarm(r v3.AlarmResponse) {
 	p.hdr(r.Header)
 	for _, a := range r.Alarms {
-		if p.isHex {
-			fmt.Println(`"MemberID" :`, types.ID(a.MemberID))
-		} else {
-			fmt.Println(`"MemberID" :`, a.MemberID)
-		}
+		fmt.Println(`"MemberID" :`, a.MemberID)
 		fmt.Println(`"AlarmType" :`, a.Alarm)
 		fmt.Println()
 	}
@@ -242,15 +199,17 @@ func (p *fieldsPrinter) RoleGet(role string, r v3.AuthRoleGetResponse) {
 func (p *fieldsPrinter) RoleDelete(role string, r v3.AuthRoleDeleteResponse) { p.hdr(r.Header) }
 func (p *fieldsPrinter) RoleList(r v3.AuthRoleListResponse) {
 	p.hdr(r.Header)
-	fmt.Print(`"Roles" :`)
+	fmt.Printf(`"Roles" :`)
 	for _, r := range r.Roles {
 		fmt.Printf(" %q", r)
 	}
 	fmt.Println()
 }
+
 func (p *fieldsPrinter) RoleGrantPermission(role string, r v3.AuthRoleGrantPermissionResponse) {
 	p.hdr(r.Header)
 }
+
 func (p *fieldsPrinter) RoleRevokePermission(role string, key string, end string, r v3.AuthRoleRevokePermissionResponse) {
 	p.hdr(r.Header)
 }
@@ -259,6 +218,7 @@ func (p *fieldsPrinter) UserChangePassword(r v3.AuthUserChangePasswordResponse) 
 func (p *fieldsPrinter) UserGrantRole(user string, role string, r v3.AuthUserGrantRoleResponse) {
 	p.hdr(r.Header)
 }
+
 func (p *fieldsPrinter) UserRevokeRole(user string, role string, r v3.AuthUserRevokeRoleResponse) {
 	p.hdr(r.Header)
 }

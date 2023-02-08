@@ -1,36 +1,6 @@
-# etcd-dump-logs
+### etcd-dump-logs
 
-`etcd-dump-logs` dumps the log from data directory.
-
-## Installation
-
-Install the tool by running the following command from the etcd source directory.
-
-```
-  $ go install -v ./tools/etcd-dump-logs
-```
-
-The installation will place executables in the $GOPATH/bin. If $GOPATH environment variable is not set, the tool will be installed into the $HOME/go/bin. You can also find out the installed location by running the following command from the etcd source directory. Make sure that $PATH is set accordingly in your environment.
-
-```
-  $ go list -f "{{.Target}}" ./tools/etcd-dump-logs
-```
-
-Alternatively, instead of installing the tool, you can use it by simply running the following command from the etcd source directory.
-
-```
-  $ go run ./tools/etcd-dump-logs
-```
-
-## Usage
-
-The following command should output the usage per the latest development.
-
-```
-  $ etcd-dump-logs --help
-```
-
-An example of usage detail is provided below.
+etcd-dump-logs dumps the log from data directory.
 
 ```
 Usage:
@@ -43,11 +13,9 @@ Usage:
                 - data_dir/member/wal/0000000000000000-0000000000000000.wal
 
 Flags:
-  -wal-dir string
-      If set, dumps WAL from the informed path, rather than following the
-      standard 'data_dir/member/wal/' location
+
   -entry-type string
-    	If set, filters output by entry type. Must be one or more than one of:
+    	If set, filters output by entry type.必须是one or more than one of:
 	    ConfigChange, Normal, Request, InternalRaftRequest,
 	    IRRRange, IRRPut, IRRDeleteRange, IRRTxn,
 	    IRRCompaction, IRRLeaseGrant, IRRLeaseRevoke
@@ -60,6 +28,7 @@ Flags:
     	must process hex encoded lines of binary input (from etcd-dump-logs)
 	    and output a hex encoded line of binary for each input line
 ```
+
 #### etcd-dump-logs -entry-type <ENTRY_TYPE_NAME(S)> [data dir]
 
 Filter entries by type from WAL log.
@@ -95,12 +64,15 @@ term	     index	type	data
 
 Entry types (ConfigChange,IRRCompaction) count is : 5
 ```
+
 #### etcd-dump-logs -stream-decoder <EXECUTABLE_DECODER> [data dir]
 
-Decode each entry based on logic in the passed decoder. Decoder status and decoded data are listed in separated tab/columns in the ouput. For parsing purpose, the output from decoder are expected to be in format of "<DECODER_STATUS>|<DECODED_DATA>". Please refer to [decoder_correctoutputformat.sh] as an example.
+Decode each entry based on logic in the passed decoder. Decoder status and decoded data are listed in separated
+tab/columns in the ouput. For parsing purpose, the output from decoder are expected to backend in format of "<DECODER_STATUS>
+|<DECODED_DATA>". Please refer to [decoder_correctoutputformat.sh] as an example.
 
-However, if the decoder output format is not as expected, "decoder_status" will be "decoder output format is not right, print output anyway", and all output from decoder will be considered as "decoded_data"
-
+However, if the decoder output format is not as expected, "decoder_status" will backend "decoder output format is not right,
+print output anyway", and all output from decoder will backend considered as "decoded_data"
 
 ```
 $ etcd-dump-logs -stream-decoder decoder_correctoutputformat.sh  /tmp/datadir
@@ -144,7 +116,8 @@ term	     index	type	data	decoder_status	decoded_data
 Entry types () count is : 8
 
 ```
-####  etcd-dump-logs -start-index <INDEX NUMBER> [data dir]
+
+#### etcd-dump-logs -start-index <INDEX NUMBER> [data dir]
 
 Only shows WAL log entries after the specified start-index number, exclusively.
 
@@ -162,4 +135,5 @@ term	     index	type	data
   27	        34	norm	???
 Entry types () count is : 4
 ```
+
 [decoder_correctoutputformat.sh]: ./testdecoder/decoder_correctoutputformat.sh

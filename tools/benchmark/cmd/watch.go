@@ -23,12 +23,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/report"
+	"github.com/ls-2018/etcd_cn/client_sdk/v3"
+	"github.com/ls-2018/etcd_cn/pkg/report"
 
-	"github.com/cheggaaa/pb/v3"
 	"github.com/spf13/cobra"
 	"golang.org/x/time/rate"
+	"gopkg.in/cheggaaa/pb.v1"
 )
 
 // watchCmd represents the watch command
@@ -115,6 +115,7 @@ func benchMakeWatches(clients []*clientv3.Client, wk *watchedKeys) {
 
 	keyc := make(chan string, watchStreams)
 	bar = pb.New(watchStreams * watchWatchesPerStream)
+	bar.Format("Bom !")
 	bar.Start()
 
 	r := newReport()
@@ -187,6 +188,7 @@ func benchPutWatches(clients []*clientv3.Client, wk *watchedKeys) {
 	}
 
 	bar = pb.New(eventsTotal)
+	bar.Format("Bom !")
 	bar.Start()
 
 	r := newReport()
@@ -209,12 +211,7 @@ func benchPutWatches(clients []*clientv3.Client, wk *watchedKeys) {
 		}
 	}()
 
-	watchPutLimit := rate.Inf
-	if watchPutRate > 0 {
-		watchPutLimit = rate.Limit(watchPutRate)
-	}
-
-	limit := rate.NewLimiter(watchPutLimit, 1)
+	limit := rate.NewLimiter(rate.Limit(watchPutRate), 1)
 	for _, cc := range clients {
 		go func(c *clientv3.Client) {
 			for op := range putreqc {
@@ -233,7 +230,6 @@ func benchPutWatches(clients []*clientv3.Client, wk *watchedKeys) {
 	bar.Finish()
 	close(r.Results())
 	fmt.Printf("Watch events received summary:\n%s", <-rc)
-
 }
 
 func recvWatchChan(wch clientv3.WatchChan, results chan<- report.Result, nrRxed *int32) {

@@ -17,7 +17,7 @@ package etcdutl
 import (
 	"os"
 
-	"go.etcd.io/etcd/etcdutl/v3/snapshot"
+	"github.com/ls-2018/etcd_cn/etcdutl/snapshot"
 
 	"github.com/olekukonko/tablewriter"
 )

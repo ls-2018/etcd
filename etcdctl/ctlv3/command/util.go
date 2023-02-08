@@ -19,16 +19,16 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	pb "go.etcd.io/etcd/api/v3/mvccpb"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
+	v3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
+	pb "github.com/ls-2018/etcd_cn/offical/api/v3/mvccpb"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 
 	"github.com/spf13/cobra"
 )
@@ -36,13 +36,13 @@ import (
 func printKV(isHex bool, valueOnly bool, kv *pb.KeyValue) {
 	k, v := string(kv.Key), string(kv.Value)
 	if isHex {
-		k = addHexPrefix(hex.EncodeToString(kv.Key))
-		v = addHexPrefix(hex.EncodeToString(kv.Value))
+		k = addHexPrefix(hex.EncodeToString([]byte(kv.Key)))
+		v = addHexPrefix(hex.EncodeToString([]byte(kv.Value)))
 	}
 	if !valueOnly {
-		fmt.Println(k)
+		fmt.Println("printKV--->", k)
 	}
-	fmt.Println(v)
+	fmt.Println("printKV--->", v)
 }
 
 func addHexPrefix(s string) string {
@@ -56,7 +56,7 @@ func addHexPrefix(s string) string {
 	return string(ns)
 }
 
-func Argify(s string) []string {
+func argify(s string) []string {
 	r := regexp.MustCompile(`"(?:[^"\\]|\\.)*"|'[^']*'|[^'"\s]\S*[^'"\s]?`)
 	args := r.FindAllString(s, -1)
 	for i := range args {
@@ -76,14 +76,6 @@ func Argify(s string) []string {
 	return args
 }
 
-func commandCtx(cmd *cobra.Command) (context.Context, context.CancelFunc) {
-	timeOut, err := cmd.Flags().GetDuration("command-timeout")
-	if err != nil {
-		cobrautl.ExitWithError(cobrautl.ExitError, err)
-	}
-	return context.WithTimeout(context.Background(), timeOut)
-}
-
 func isCommandTimeoutFlagSet(cmd *cobra.Command) bool {
 	commandTimeoutFlag := cmd.Flags().Lookup("command-timeout")
 	if commandTimeoutFlag == nil {
@@ -92,8 +84,8 @@ func isCommandTimeoutFlagSet(cmd *cobra.Command) bool {
 	return commandTimeoutFlag.Changed
 }
 
-// get the process_resident_memory_bytes from <server>/metrics
-func endpointMemoryMetrics(host string, scfg *clientv3.SecureConfig) float64 {
+// get the process_resident_memory_bytes from <etcd>/metrics
+func endpointMemoryMetrics(host string, scfg *secureCfg) float64 {
 	residentMemoryKey := "process_resident_memory_bytes"
 	var residentMemoryValue string
 	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
@@ -102,14 +94,14 @@ func endpointMemoryMetrics(host string, scfg *clientv3.SecureConfig) float64 {
 	url := host + "/metrics"
 	if strings.HasPrefix(host, "https://") {
 		// load client certificate
-		cert, err := tls.LoadX509KeyPair(scfg.Cert, scfg.Key)
+		cert, err := tls.LoadX509KeyPair(scfg.cert, scfg.key)
 		if err != nil {
 			fmt.Println(fmt.Sprintf("client certificate error: %v", err))
 			return 0.0
 		}
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
 			Certificates:       []tls.Certificate{cert},
-			InsecureSkipVerify: scfg.InsecureSkipVerify,
+			InsecureSkipVerify: scfg.insecureSkipVerify,
 		}
 	}
 	resp, err := http.Get(url)
@@ -117,7 +109,7 @@ func endpointMemoryMetrics(host string, scfg *clientv3.SecureConfig) float64 {
 		fmt.Println(fmt.Sprintf("fetch error: %v", err))
 		return 0.0
 	}
-	byts, readerr := io.ReadAll(resp.Body)
+	byts, readerr := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
 	if readerr != nil {
 		fmt.Println(fmt.Sprintf("fetch error: reading %s: %v", url, readerr))
@@ -144,10 +136,10 @@ func endpointMemoryMetrics(host string, scfg *clientv3.SecureConfig) float64 {
 }
 
 // compact keyspace history to a provided revision
-func compact(c *clientv3.Client, rev int64) {
+func compact(c *v3.Client, rev int64) {
 	fmt.Printf("Compacting with revision %d\n", rev)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_, err := c.Compact(ctx, rev, clientv3.WithCompactPhysical())
+	_, err := c.Compact(ctx, rev, v3.WithCompactPhysical())
 	cancel()
 	if err != nil {
 		cobrautl.ExitWithError(cobrautl.ExitError, err)
@@ -155,14 +147,22 @@ func compact(c *clientv3.Client, rev int64) {
 	fmt.Printf("Compacted with revision %d\n", rev)
 }
 
-// defrag a given endpoint
-func defrag(c *clientv3.Client, ep string) {
-	fmt.Printf("Defragmenting %q\n", ep)
+func defrag(c *v3.Client, ep string) {
+	fmt.Printf("开始内存碎片整理 %q\n", ep)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	_, err := c.Defragment(ctx, ep)
 	cancel()
 	if err != nil {
 		cobrautl.ExitWithError(cobrautl.ExitError, err)
 	}
-	fmt.Printf("Defragmented %q\n", ep)
+	fmt.Printf("内存碎片整理 %q\n", ep)
+}
+
+// 超时上下文,默认5s
+func commandCtx(cmd *cobra.Command) (context.Context, context.CancelFunc) {
+	timeOut, err := cmd.Flags().GetDuration("command-timeout")
+	if err != nil {
+		cobrautl.ExitWithError(cobrautl.ExitError, err)
+	}
+	return context.WithTimeout(context.Background(), timeOut)
 }

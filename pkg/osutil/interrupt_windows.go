@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //go:build windows
+// +build windows
 
 package osutil
 
@@ -24,7 +25,7 @@ import (
 
 type InterruptHandler func()
 
-// RegisterInterruptHandler is a no-op on windows
+// RegisterInterruptHandler 注册中断处理程序,但不会执行
 func RegisterInterruptHandler(h InterruptHandler) {}
 
 // HandleInterrupts is a no-op on windows

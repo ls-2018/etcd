@@ -36,7 +36,9 @@ type Result struct {
 	Weight float64
 }
 
-func (res *Result) Duration() time.Duration { return res.End.Sub(res.Start) }
+func (res *Result) Duration() time.Duration {
+	return res.End.Sub(res.Start)
+}
 
 type report struct {
 	results   chan Result
@@ -49,13 +51,13 @@ type report struct {
 // Stats exposes results raw data.
 type Stats struct {
 	AvgTotal   float64
-	Fastest    float64
-	Slowest    float64
+	Fastest    float64 // 请求最快的时间
+	Slowest    float64 // 请求最长的时间
 	Average    float64
 	Stddev     float64
 	RPS        float64
-	Total      time.Duration
-	ErrorDist  map[string]int
+	Total      time.Duration  // 总花费时间
+	ErrorDist  map[string]int // 错误计数
 	Lats       []float64
 	TimeSeries TimeSeries
 }
@@ -67,15 +69,10 @@ func (s *Stats) copy() Stats {
 	return ss
 }
 
-// Report processes a result stream until it is closed, then produces a
-// string with information about the consumed result data.
+// Report  处理结果流直到它被关闭,然后生成一个包含有关所使用的结果数据的信息的字符串.
 type Report interface {
 	Results() chan<- Result
-
-	// Run returns results in print-friendly format.
 	Run() <-chan string
-
-	// Stats returns results in raw data.
 	Stats() <-chan Stats
 }
 
@@ -96,7 +93,9 @@ func NewReportSample(precision string) Report {
 	return r
 }
 
-func (r *report) Results() chan<- Result { return r.results }
+func (r *report) Results() chan<- Result {
+	return r.results
+}
 
 func (r *report) Run() <-chan string {
 	donec := make(chan string, 1)
@@ -138,7 +137,7 @@ func copyFloats(s []float64) (c []float64) {
 
 func (r *report) String() (s string) {
 	if len(r.stats.Lats) > 0 {
-		s += "\nSummary:\n"
+		s += fmt.Sprintf("\nSummary:\n")
 		s += fmt.Sprintf("  Total:\t%s.\n", r.sec2str(r.stats.Total.Seconds()))
 		s += fmt.Sprintf("  Slowest:\t%s.\n", r.sec2str(r.stats.Slowest))
 		s += fmt.Sprintf("  Fastest:\t%s.\n", r.sec2str(r.stats.Fastest))
@@ -226,7 +225,7 @@ func percentiles(nums []float64) (data []float64) {
 
 func (r *report) sprintLatencies() string {
 	data := percentiles(r.stats.Lats)
-	s := "\nLatency distribution:\n"
+	s := fmt.Sprintf("\nLatency distribution:\n")
 	for i := 0; i < len(pctls); i++ {
 		if data[i] > 0 {
 			s += fmt.Sprintf("  %v%% in %s.\n", pctls[i], r.sec2str(data[i]))
@@ -257,7 +256,7 @@ func (r *report) histogram() string {
 			bi++
 		}
 	}
-	s := "\nResponse time histogram:\n"
+	s := fmt.Sprintf("\nResponse time histogram:\n")
 	for i := 0; i < len(buckets); i++ {
 		// Normalize bar lengths.
 		var barLen int
@@ -270,7 +269,7 @@ func (r *report) histogram() string {
 }
 
 func (r *report) errors() string {
-	s := "\nError distribution:\n"
+	s := fmt.Sprintf("\nError distribution:\n")
 	for err, num := range r.stats.ErrorDist {
 		s += fmt.Sprintf("  [%d]\t%s\n", num, err)
 	}

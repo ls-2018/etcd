@@ -15,22 +15,21 @@
 package command
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/bgentry/speakeasy"
-
-	"go.etcd.io/etcd/client/pkg/v3/logutil"
-	"go.etcd.io/etcd/client/pkg/v3/srv"
-	"go.etcd.io/etcd/client/pkg/v3/transport"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
-	"go.etcd.io/etcd/pkg/v3/flags"
-
+	"github.com/ls-2018/etcd_cn/client_sdk/pkg/srv"
+	"github.com/ls-2018/etcd_cn/client_sdk/pkg/transport"
+	clientv3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
+	"github.com/ls-2018/etcd_cn/pkg/flags"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -61,6 +60,21 @@ type GlobalFlags struct {
 	Debug bool
 }
 
+type secureCfg struct {
+	cert       string
+	key        string
+	cacert     string
+	serverName string
+
+	insecureTransport  bool
+	insecureSkipVerify bool
+}
+
+type authCfg struct {
+	username string
+	password string
+}
+
 type discoveryCfg struct {
 	domain      string
 	insecure    bool
@@ -83,14 +97,23 @@ func initDisplayFromCmd(cmd *cobra.Command) {
 	}
 }
 
+type clientConfig struct {
+	endpoints        []string
+	dialTimeout      time.Duration
+	keepAliveTime    time.Duration
+	keepAliveTimeout time.Duration
+	scfg             *secureCfg
+	acfg             *authCfg
+}
+
 type discardValue struct{}
 
 func (*discardValue) String() string   { return "" }
 func (*discardValue) Set(string) error { return nil }
 func (*discardValue) Type() string     { return "" }
 
-func clientConfigFromCmd(cmd *cobra.Command) *clientv3.ConfigSpec {
-	lg, err := logutil.CreateDefaultZapLogger(zap.InfoLevel)
+func clientConfigFromCmd(cmd *cobra.Command) *clientConfig {
+	lg, err := zap.NewProduction()
 	if err != nil {
 		cobrautl.ExitWithError(cobrautl.ExitError, err)
 	}
@@ -117,21 +140,21 @@ func clientConfigFromCmd(cmd *cobra.Command) *clientv3.ConfigSpec {
 		// too many routine connection disconnects to turn on by default.
 		//
 		// See https://github.com/etcd-io/etcd/pull/9623 for background
-		grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, os.Stderr))
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, ioutil.Discard, os.Stderr))
 	}
 
-	cfg := &clientv3.ConfigSpec{}
-	cfg.Endpoints, err = endpointsFromCmd(cmd)
+	cfg := &clientConfig{}
+	cfg.endpoints, err = endpointsFromCmd(cmd)
 	if err != nil {
 		cobrautl.ExitWithError(cobrautl.ExitError, err)
 	}
 
-	cfg.DialTimeout = dialTimeoutFromCmd(cmd)
-	cfg.KeepAliveTime = keepAliveTimeFromCmd(cmd)
-	cfg.KeepAliveTimeout = keepAliveTimeoutFromCmd(cmd)
+	cfg.dialTimeout = dialTimeoutFromCmd(cmd)
+	cfg.keepAliveTime = keepAliveTimeFromCmd(cmd)
+	cfg.keepAliveTimeout = keepAliveTimeoutFromCmd(cmd)
 
-	cfg.Secure = secureCfgFromCmd(cmd)
-	cfg.Auth = authCfgFromCmd(cmd)
+	cfg.scfg = secureCfgFromCmd(cmd)
+	cfg.acfg = authCfgFromCmd(cmd)
 
 	initDisplayFromCmd(cmd)
 	return cfg
@@ -139,8 +162,7 @@ func clientConfigFromCmd(cmd *cobra.Command) *clientv3.ConfigSpec {
 
 func mustClientCfgFromCmd(cmd *cobra.Command) *clientv3.Config {
 	cc := clientConfigFromCmd(cmd)
-	lg, _ := logutil.CreateDefaultZapLogger(zap.InfoLevel)
-	cfg, err := clientv3.NewClientConfig(cc, lg)
+	cfg, err := newClientCfg(cc.endpoints, cc.dialTimeout, cc.keepAliveTime, cc.keepAliveTimeout, cc.scfg, cc.acfg)
 	if err != nil {
 		cobrautl.ExitWithError(cobrautl.ExitBadArgs, err)
 	}
@@ -148,13 +170,12 @@ func mustClientCfgFromCmd(cmd *cobra.Command) *clientv3.Config {
 }
 
 func mustClientFromCmd(cmd *cobra.Command) *clientv3.Client {
-	cfg := clientConfigFromCmd(cmd)
-	return mustClient(cfg)
+	cfg := clientConfigFromCmd(cmd) // ok
+	return cfg.mustClient()
 }
 
-func mustClient(cc *clientv3.ConfigSpec) *clientv3.Client {
-	lg, _ := logutil.CreateDefaultZapLogger(zap.InfoLevel)
-	cfg, err := clientv3.NewClientConfig(cc, lg)
+func (cc *clientConfig) mustClient() *clientv3.Client {
+	cfg, err := newClientCfg(cc.endpoints, cc.dialTimeout, cc.keepAliveTime, cc.keepAliveTimeout, cc.scfg, cc.acfg)
 	if err != nil {
 		cobrautl.ExitWithError(cobrautl.ExitBadArgs, err)
 	}
@@ -167,11 +188,71 @@ func mustClient(cc *clientv3.ConfigSpec) *clientv3.Client {
 	return client
 }
 
+func newClientCfg(endpoints []string, dialTimeout, keepAliveTime, keepAliveTimeout time.Duration, scfg *secureCfg, acfg *authCfg) (*clientv3.Config, error) {
+	var cfgtls *transport.TLSInfo
+	tlsinfo := transport.TLSInfo{}
+	tlsinfo.Logger, _ = zap.NewProduction()
+	if scfg.cert != "" {
+		tlsinfo.CertFile = scfg.cert
+		cfgtls = &tlsinfo
+	}
+
+	if scfg.key != "" {
+		tlsinfo.KeyFile = scfg.key
+		cfgtls = &tlsinfo
+	}
+
+	if scfg.cacert != "" {
+		tlsinfo.TrustedCAFile = scfg.cacert
+		cfgtls = &tlsinfo
+	}
+
+	if scfg.serverName != "" {
+		tlsinfo.ServerName = scfg.serverName
+		cfgtls = &tlsinfo
+	}
+
+	cfg := &clientv3.Config{
+		Endpoints:            endpoints,
+		DialTimeout:          dialTimeout,
+		DialKeepAliveTime:    keepAliveTime,
+		DialKeepAliveTimeout: keepAliveTimeout,
+	}
+
+	if cfgtls != nil {
+		clientTLS, err := cfgtls.ClientConfig()
+		if err != nil {
+			return nil, err
+		}
+		cfg.TLS = clientTLS
+	}
+
+	// if key/cert is not given but user wants secure connection, we
+	// should still setup an empty tls configuration for gRPC to setup
+	// secure connection.
+	if cfg.TLS == nil && !scfg.insecureTransport {
+		cfg.TLS = &tls.Config{}
+	}
+
+	// If the user wants to skip TLS verification then we should set
+	// the InsecureSkipVerify flag in tls configuration.
+	if scfg.insecureSkipVerify && cfg.TLS != nil {
+		cfg.TLS.InsecureSkipVerify = true
+	}
+
+	if acfg != nil {
+		cfg.Username = acfg.username
+		cfg.Password = acfg.password
+	}
+
+	return cfg, nil
+}
+
 func argOrStdin(args []string, stdin io.Reader, i int) (string, error) {
 	if i < len(args) {
 		return args[i], nil
 	}
-	bytes, err := io.ReadAll(stdin)
+	bytes, err := ioutil.ReadAll(stdin)
 	if string(bytes) == "" || err != nil {
 		return "", errors.New("no available argument and stdin")
 	}
@@ -202,7 +283,7 @@ func keepAliveTimeoutFromCmd(cmd *cobra.Command) time.Duration {
 	return keepAliveTimeout
 }
 
-func secureCfgFromCmd(cmd *cobra.Command) *clientv3.SecureConfig {
+func secureCfgFromCmd(cmd *cobra.Command) *secureCfg {
 	cert, key, cacert := keyAndCertFromCmd(cmd)
 	insecureTr := insecureTransportFromCmd(cmd)
 	skipVerify := insecureSkipVerifyFromCmd(cmd)
@@ -212,14 +293,14 @@ func secureCfgFromCmd(cmd *cobra.Command) *clientv3.SecureConfig {
 		discoveryCfg.domain = ""
 	}
 
-	return &clientv3.SecureConfig{
-		Cert:       cert,
-		Key:        key,
-		Cacert:     cacert,
-		ServerName: discoveryCfg.domain,
+	return &secureCfg{
+		cert:       cert,
+		key:        key,
+		cacert:     cacert,
+		serverName: discoveryCfg.domain,
 
-		InsecureTransport:  insecureTr,
-		InsecureSkipVerify: skipVerify,
+		insecureTransport:  insecureTr,
+		insecureSkipVerify: skipVerify,
 	}
 }
 
@@ -262,7 +343,7 @@ func keyAndCertFromCmd(cmd *cobra.Command) (cert, key, cacert string) {
 	return cert, key, cacert
 }
 
-func authCfgFromCmd(cmd *cobra.Command) *clientv3.AuthConfig {
+func authCfgFromCmd(cmd *cobra.Command) *authCfg {
 	userFlag, err := cmd.Flags().GetString("user")
 	if err != nil {
 		cobrautl.ExitWithError(cobrautl.ExitBadArgs, err)
@@ -276,26 +357,71 @@ func authCfgFromCmd(cmd *cobra.Command) *clientv3.AuthConfig {
 		return nil
 	}
 
-	var cfg clientv3.AuthConfig
+	var cfg authCfg
 
 	if passwordFlag == "" {
 		splitted := strings.SplitN(userFlag, ":", 2)
 		if len(splitted) < 2 {
-			cfg.Username = userFlag
-			cfg.Password, err = speakeasy.Ask("Password: ")
+			cfg.username = userFlag
+			cfg.password, err = speakeasy.Ask("Password: ")
 			if err != nil {
 				cobrautl.ExitWithError(cobrautl.ExitError, err)
 			}
 		} else {
-			cfg.Username = splitted[0]
-			cfg.Password = splitted[1]
+			cfg.username = splitted[0]
+			cfg.password = splitted[1]
 		}
 	} else {
-		cfg.Username = userFlag
-		cfg.Password = passwordFlag
+		cfg.username = userFlag
+		cfg.password = passwordFlag
 	}
 
 	return &cfg
+}
+
+func endpointsFromFlagValue(cmd *cobra.Command) ([]string, error) {
+	discoveryCfg := discoveryCfgFromCmd(cmd)
+
+	// If we still don't have domain discovery, return nothing
+	if discoveryCfg.domain == "" {
+		return []string{}, nil
+	}
+
+	srvs, err := srv.GetClient("etcd-client", discoveryCfg.domain, discoveryCfg.serviceName)
+	if err != nil {
+		return nil, err
+	}
+	eps := srvs.Endpoints
+	if discoveryCfg.insecure {
+		return eps, err
+	}
+	// strip insecure connections
+	ret := []string{}
+	for _, ep := range eps {
+		if strings.HasPrefix(ep, "http://") {
+			fmt.Fprintf(os.Stderr, "ignoring discovered insecure endpoint %q\n", ep)
+			continue
+		}
+		ret = append(ret, ep)
+	}
+	return ret, err
+}
+
+func endpointsFromCmd(cmd *cobra.Command) ([]string, error) {
+	eps, err := endpointsFromFlagValue(cmd) // 获取endpoints
+	if err != nil {
+		return nil, err
+	}
+	// If domain discovery returns no endpoints, check endpoints flag
+	if len(eps) == 0 {
+		eps, err = cmd.Flags().GetStringSlice("endpoints")
+		if err == nil {
+			for i, ip := range eps {
+				eps[i] = strings.TrimSpace(ip)
+			}
+		}
+	}
+	return eps, err
 }
 
 func insecureDiscoveryFromCmd(cmd *cobra.Command) bool {
@@ -324,53 +450,8 @@ func discoveryDNSClusterServiceNameFromCmd(cmd *cobra.Command) string {
 
 func discoveryCfgFromCmd(cmd *cobra.Command) *discoveryCfg {
 	return &discoveryCfg{
-		domain:      discoverySrvFromCmd(cmd),
-		insecure:    insecureDiscoveryFromCmd(cmd),
-		serviceName: discoveryDNSClusterServiceNameFromCmd(cmd),
+		domain:      discoverySrvFromCmd(cmd),                   // string
+		insecure:    insecureDiscoveryFromCmd(cmd),              // bool
+		serviceName: discoveryDNSClusterServiceNameFromCmd(cmd), // string
 	}
-}
-
-func endpointsFromCmd(cmd *cobra.Command) ([]string, error) {
-	eps, err := endpointsFromFlagValue(cmd)
-	if err != nil {
-		return nil, err
-	}
-	// If domain discovery returns no endpoints, check endpoints flag
-	if len(eps) == 0 {
-		eps, err = cmd.Flags().GetStringSlice("endpoints")
-		if err == nil {
-			for i, ip := range eps {
-				eps[i] = strings.TrimSpace(ip)
-			}
-		}
-	}
-	return eps, err
-}
-
-func endpointsFromFlagValue(cmd *cobra.Command) ([]string, error) {
-	discoveryCfg := discoveryCfgFromCmd(cmd)
-
-	// If we still don't have domain discovery, return nothing
-	if discoveryCfg.domain == "" {
-		return []string{}, nil
-	}
-
-	srvs, err := srv.GetClient("etcd-client", discoveryCfg.domain, discoveryCfg.serviceName)
-	if err != nil {
-		return nil, err
-	}
-	eps := srvs.Endpoints
-	if discoveryCfg.insecure {
-		return eps, err
-	}
-	// strip insecure connections
-	var ret []string
-	for _, ep := range eps {
-		if strings.HasPrefix(ep, "http://") {
-			fmt.Fprintf(os.Stderr, "ignoring discovered insecure endpoint %q\n", ep)
-			continue
-		}
-		ret = append(ret, ep)
-	}
-	return ret, err
 }

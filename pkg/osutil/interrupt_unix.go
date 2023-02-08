@@ -13,6 +13,7 @@
 // limitations under the License.
 
 //go:build !windows && !plan9
+// +build !windows,!plan9
 
 package osutil
 
@@ -21,8 +22,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-
-	"go.etcd.io/etcd/client/pkg/v3/verify"
 
 	"go.uber.org/zap"
 )
@@ -35,11 +34,10 @@ var (
 	interruptRegisterMu, interruptExitMu sync.Mutex
 	// interruptHandlers holds all registered InterruptHandlers in order
 	// they will be executed.
-	interruptHandlers []InterruptHandler
+	interruptHandlers = []InterruptHandler{}
 )
 
-// RegisterInterruptHandler registers a new InterruptHandler. Handlers registered
-// after interrupt handing was initiated will not be executed.
+// RegisterInterruptHandler 注册中断处理程序,但不会执行
 func RegisterInterruptHandler(h InterruptHandler) {
 	interruptRegisterMu.Lock()
 	defer interruptRegisterMu.Unlock()
@@ -48,7 +46,6 @@ func RegisterInterruptHandler(h InterruptHandler) {
 
 // HandleInterrupts calls the handler functions on receiving a SIGINT or SIGTERM.
 func HandleInterrupts(lg *zap.Logger) {
-	verify.Assert(lg != nil, "the logger should not be nil")
 	notifier := make(chan os.Signal, 1)
 	signal.Notify(notifier, syscall.SIGINT, syscall.SIGTERM)
 
@@ -62,7 +59,9 @@ func HandleInterrupts(lg *zap.Logger) {
 
 		interruptExitMu.Lock()
 
-		lg.Info("received signal; shutting down", zap.String("signal", sig.String()))
+		if lg != nil {
+			lg.Info("received signal; shutting down", zap.String("signal", sig.String()))
+		}
 
 		for _, h := range ihs {
 			h()

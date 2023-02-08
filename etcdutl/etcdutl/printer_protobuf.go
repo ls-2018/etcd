@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"os"
 
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 )
 
 type pbPrinter struct{ printer }

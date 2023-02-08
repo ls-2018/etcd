@@ -1,4 +1,3 @@
-
 ## Red-Black Tree
 
 *"Introduction to Algorithms" (Cormen et al, 3rd ed.), Chapter 13*
@@ -7,27 +6,27 @@
 2. The root is black.
 3. Every leaf (NIL) is black.
 4. If a node is red, then both its children are black.
-5. For each node, all simple paths from the node to descendant leaves contain the
-same number of black nodes.
+5. For each node, all simple paths from the node to descendant leaves contain the same number of black nodes.
 
 For example,
 
 ```go
 import (
-    "fmt"
+"fmt"
 
-    "go.etcd.io/etcd/pkg/v3/adt"
+"github.com/ls-2018/etcd_cn/pkg/adt"
 )
 
 func main() {
-    ivt := adt.NewIntervalTree()
-    ivt.Insert(NewInt64Interval(510, 511), 0)
-    ivt.Insert(NewInt64Interval(82, 83), 0)
-    ivt.Insert(NewInt64Interval(830, 831), 0)
-    ...
+ivt := adt.NewIntervalTree()
+ivt.Insert(NewInt64Interval(510, 511), 0)
+ivt.Insert(NewInt64Interval(82, 83), 0)
+ivt.Insert(NewInt64Interval(830, 831), 0)
+...
 ```
 
-After inserting the values `510`, `82`, `830`, `11`, `383`, `647`, `899`, `261`, `410`, `514`, `815`, `888`, `972`, `238`, `292`, `953`.
+After inserting the values `510`, `82`, `830`, `11`, `383`, `647`, `899`, `261`, `410`, `514`, `815`, `888`, `972`
+, `238`, `292`, `953`.
 
 ![red-black-tree-01-insertion.png](img/red-black-tree-01-insertion.png)
 

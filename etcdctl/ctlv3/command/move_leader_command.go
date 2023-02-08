@@ -18,17 +18,17 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/spf13/cobra"
+	clientv3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
+	"github.com/spf13/cobra"
 )
 
 // NewMoveLeaderCommand returns the cobra command for "move-leader".
 func NewMoveLeaderCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "move-leader <transferee-member-id>",
-		Short: "Transfers leadership to another etcd cluster member.",
+		Short: "触发leader转移",
 		Run:   transferLeadershipCommandFunc,
 	}
 	return cmd
@@ -44,20 +44,20 @@ func transferLeadershipCommandFunc(cmd *cobra.Command, args []string) {
 		cobrautl.ExitWithError(cobrautl.ExitBadArgs, err)
 	}
 
-	cfg := clientConfigFromCmd(cmd)
-	cli := mustClient(cfg)
-	eps := cli.Endpoints()
-	cli.Close()
+	c := mustClientFromCmd(cmd)
+	eps := c.Endpoints()
+	c.Close()
 
 	ctx, cancel := commandCtx(cmd)
 
-	// find current leader
 	var leaderCli *clientv3.Client
 	var leaderID uint64
+	// 找到当前的leader
 	for _, ep := range eps {
-		cfg.Endpoints = []string{ep}
-		cli := mustClient(cfg)
-		resp, serr := cli.Status(ctx, ep)
+		cfg := clientConfigFromCmd(cmd)
+		cfg.endpoints = []string{ep}
+		cli := cfg.mustClient()
+		resp, serr := cli.Status(ctx, ep) // 获取单个节点状态
 		if serr != nil {
 			cobrautl.ExitWithError(cobrautl.ExitError, serr)
 		}
@@ -69,6 +69,7 @@ func transferLeadershipCommandFunc(cmd *cobra.Command, args []string) {
 		}
 		cli.Close()
 	}
+
 	if leaderCli == nil {
 		cobrautl.ExitWithError(cobrautl.ExitBadArgs, fmt.Errorf("no leader endpoint given at %v", eps))
 	}

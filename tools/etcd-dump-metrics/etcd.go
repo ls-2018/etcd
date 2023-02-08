@@ -17,13 +17,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/server/v3/embed"
+	clientv3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
+	"github.com/ls-2018/etcd_cn/etcd/embed"
 
 	"go.uber.org/zap"
 )
@@ -40,10 +41,10 @@ func newEmbedURLs(n int) (urls []url.URL) {
 func setupEmbedCfg(cfg *embed.Config, curls, purls, ics []url.URL) {
 	cfg.Logger = "zap"
 	cfg.LogOutputs = []string{"/dev/null"}
-	// []string{"stderr"} to enable server logging
+	// []string{"stderr"} to enable etcd logging
 
 	var err error
-	cfg.Dir, err = os.MkdirTemp(os.TempDir(), fmt.Sprintf("%016X", time.Now().UnixNano()))
+	cfg.Dir, err = ioutil.TempDir(os.TempDir(), fmt.Sprintf("%016X", time.Now().UnixNano()))
 	if err != nil {
 		panic(err)
 	}
@@ -70,7 +71,7 @@ func getCommand(exec, name, dir, cURL, pURL, cluster string) (args []string) {
 		"--data-dir", dir,
 		"--listen-client-urls", cURL,
 		"--advertise-client-urls", cURL,
-		"--listen-peer-urls", pURL,
+		"--listen-peer-urls", pURL, // 集群节点之间通信监听的URL;如果指定的IP是0.0.0.0,那么etcd 会监昕所有网卡的指定端口
 		"--initial-advertise-peer-urls", pURL,
 		"--initial-cluster", cluster,
 		"--initial-cluster-token=tkn",

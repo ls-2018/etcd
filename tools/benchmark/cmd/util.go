@@ -22,10 +22,9 @@ import (
 	"strings"
 
 	"github.com/bgentry/speakeasy"
+	"github.com/ls-2018/etcd_cn/client_sdk/v3"
+	"github.com/ls-2018/etcd_cn/pkg/report"
 	"google.golang.org/grpc/grpclog"
-
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/pkg/v3/report"
 )
 
 var (
@@ -48,22 +47,22 @@ func mustFindLeaderEndpoints(c *clientv3.Client) {
 		os.Exit(1)
 	}
 
-	leaderID := uint64(0)
+	leaderId := uint64(0)
 	for _, ep := range c.Endpoints() {
 		if sresp, serr := c.Status(context.TODO(), ep); serr == nil {
-			leaderID = sresp.Leader
+			leaderId = sresp.Leader
 			break
 		}
 	}
 
 	for _, m := range resp.Members {
-		if m.ID == leaderID {
+		if m.ID == leaderId {
 			leaderEps = m.ClientURLs
 			return
 		}
 	}
 
-	fmt.Fprint(os.Stderr, "failed to find a leader endpoint\n")
+	fmt.Fprintf(os.Stderr, "failed to find a leader endpoint\n")
 	os.Exit(1)
 }
 
@@ -94,9 +93,8 @@ func mustCreateConn() *clientv3.Client {
 		dialTotal++
 	}
 	cfg := clientv3.Config{
-		AutoSyncInterval: autoSyncInterval,
-		Endpoints:        connEndpoints,
-		DialTimeout:      dialTimeout,
+		Endpoints:   connEndpoints,
+		DialTimeout: dialTimeout,
 	}
 	if !tls.Empty() || tls.TrustedCAFile != "" {
 		cfgtls, err := tls.ClientConfig()

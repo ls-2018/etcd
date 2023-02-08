@@ -23,19 +23,14 @@ import (
 	"time"
 
 	"github.com/bgentry/speakeasy"
+	clientv3 "github.com/ls-2018/etcd_cn/client_sdk/v3"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
-
-	"go.etcd.io/etcd/api/v3/mvccpb"
-	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/client/v3/mirror"
+	"github.com/ls-2018/etcd_cn/client_sdk/v3/mirror"
+	"github.com/ls-2018/etcd_cn/offical/api/v3/mvccpb"
+	"github.com/ls-2018/etcd_cn/offical/api/v3/v3rpc/rpctypes"
 
 	"github.com/spf13/cobra"
-)
-
-const (
-	defaultMaxTxnOps = uint(128)
 )
 
 var (
@@ -48,57 +43,52 @@ var (
 	mmuser         string
 	mmpassword     string
 	mmnodestprefix bool
-	mmrev          int64
-	mmmaxTxnOps    uint
 )
 
 // NewMakeMirrorCommand returns the cobra command for "makeMirror".
 func NewMakeMirrorCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "make-mirror [options] <destination>",
-		Short: "Makes a mirror at the destination etcd cluster",
+		Short: "在目标etcd集群上创建镜像",
 		Run:   makeMirrorCommandFunc,
 	}
 
-	c.Flags().StringVar(&mmprefix, "prefix", "", "Key-value prefix to mirror")
-	c.Flags().Int64Var(&mmrev, "rev", 0, "Specify the kv revision to start to mirror")
-	c.Flags().UintVar(&mmmaxTxnOps, "max-txn-ops", defaultMaxTxnOps, "Maximum number of operations permitted in a transaction during syncing updates.")
-	c.Flags().StringVar(&mmdestprefix, "dest-prefix", "", "destination prefix to mirror a prefix to a different prefix in the destination cluster")
-	c.Flags().BoolVar(&mmnodestprefix, "no-dest-prefix", false, "mirror key-values to the root of the destination cluster")
-	c.Flags().StringVar(&mmcert, "dest-cert", "", "Identify secure client using this TLS certificate file for the destination cluster")
-	c.Flags().StringVar(&mmkey, "dest-key", "", "Identify secure client using this TLS key file")
-	c.Flags().StringVar(&mmcacert, "dest-cacert", "", "Verify certificates of TLS enabled secure servers using this CA bundle")
-	// TODO: secure by default when etcd enables secure gRPC by default.
-	c.Flags().BoolVar(&mminsecureTr, "dest-insecure-transport", true, "Disable transport security for client connections")
-	c.Flags().StringVar(&mmuser, "dest-user", "", "Destination username[:password] for authentication (prompt if password is not supplied)")
-	c.Flags().StringVar(&mmpassword, "dest-password", "", "Destination password for authentication (if this option is used, --user option shouldn't include password)")
+	c.Flags().StringVar(&mmprefix, "prefix", "", "为那个前缀打快照")
+	c.Flags().StringVar(&mmdestprefix, "dest-prefix", "", "将一个source前缀 镜像到 目标集群中的另一个前缀")
+	c.Flags().BoolVar(&mmnodestprefix, "no-dest-prefix", false, "kv镜像到另一个集群的根目录下")
+	c.Flags().StringVar(&mmcert, "dest-cert", "", "使用此TLS证书文件为目标集群识别安全客户端")
+	c.Flags().StringVar(&mmkey, "dest-key", "", "使用此TLS私钥文件为目标集群识别安全客户端")
+	c.Flags().StringVar(&mmcacert, "dest-cacert", "", "使用此CA包验证启用TLS的安全服务器的证书")
+	c.Flags().BoolVar(&mminsecureTr, "dest-insecure-transport", true, "为客户端连接禁用传输安全性")
+	c.Flags().StringVar(&mmuser, "dest-user", "", "目标集群的 username[:password]")
+	c.Flags().StringVar(&mmpassword, "dest-password", "", "目标集群的密码")
 
 	return c
 }
 
-func authDestCfg() *clientv3.AuthConfig {
+func authDestCfg() *authCfg {
 	if mmuser == "" {
 		return nil
 	}
 
-	var cfg clientv3.AuthConfig
+	var cfg authCfg
 
 	if mmpassword == "" {
 		splitted := strings.SplitN(mmuser, ":", 2)
 		if len(splitted) < 2 {
 			var err error
-			cfg.Username = mmuser
-			cfg.Password, err = speakeasy.Ask("Destination Password: ")
+			cfg.username = mmuser
+			cfg.password, err = speakeasy.Ask("Destination Password: ")
 			if err != nil {
 				cobrautl.ExitWithError(cobrautl.ExitError, err)
 			}
 		} else {
-			cfg.Username = splitted[0]
-			cfg.Password = splitted[1]
+			cfg.username = splitted[0]
+			cfg.password = splitted[1]
 		}
 	} else {
-		cfg.Username = mmuser
-		cfg.Password = mmpassword
+		cfg.username = mmuser
+		cfg.password = mmpassword
 	}
 
 	return &cfg
@@ -112,24 +102,24 @@ func makeMirrorCommandFunc(cmd *cobra.Command, args []string) {
 	dialTimeout := dialTimeoutFromCmd(cmd)
 	keepAliveTime := keepAliveTimeFromCmd(cmd)
 	keepAliveTimeout := keepAliveTimeoutFromCmd(cmd)
-	sec := &clientv3.SecureConfig{
-		Cert:              mmcert,
-		Key:               mmkey,
-		Cacert:            mmcacert,
-		InsecureTransport: mminsecureTr,
+	sec := &secureCfg{
+		cert:              mmcert,
+		key:               mmkey,
+		cacert:            mmcacert,
+		insecureTransport: mminsecureTr,
 	}
 
 	auth := authDestCfg()
 
-	cc := &clientv3.ConfigSpec{
-		Endpoints:        []string{args[0]},
-		DialTimeout:      dialTimeout,
-		KeepAliveTime:    keepAliveTime,
-		KeepAliveTimeout: keepAliveTimeout,
-		Secure:           sec,
-		Auth:             auth,
+	cc := &clientConfig{
+		endpoints:        []string{args[0]},
+		dialTimeout:      dialTimeout,
+		keepAliveTime:    keepAliveTime,
+		keepAliveTimeout: keepAliveTimeout,
+		scfg:             sec,
+		acfg:             auth,
 	}
-	dc := mustClient(cc)
+	dc := cc.mustClient() // 目标集群
 	c := mustClientFromCmd(cmd)
 
 	err := makeMirror(context.TODO(), c, dc)
@@ -139,49 +129,40 @@ func makeMirrorCommandFunc(cmd *cobra.Command, args []string) {
 func makeMirror(ctx context.Context, c *clientv3.Client, dc *clientv3.Client) error {
 	total := int64(0)
 
-	// if destination prefix is specified and remove destination prefix is true return error
-	if mmnodestprefix && len(mmdestprefix) > 0 {
-		cobrautl.ExitWithError(cobrautl.ExitBadArgs, errors.New("`--dest-prefix` and `--no-dest-prefix` cannot be set at the same time, choose one"))
-	}
-
 	go func() {
 		for {
 			time.Sleep(30 * time.Second)
-			fmt.Println(atomic.LoadInt64(&total))
+			fmt.Println("total--->:", atomic.LoadInt64(&total))
 		}
 	}()
 
-	startRev := mmrev - 1
-	if startRev < 0 {
-		startRev = 0
+	s := mirror.NewSyncer(c, mmprefix, 0)
+
+	rc, errc := s.SyncBase(ctx)
+
+	// 如果指定并删除目的前缀,则返回错误
+	if mmnodestprefix && len(mmdestprefix) > 0 {
+		cobrautl.ExitWithError(cobrautl.ExitBadArgs, fmt.Errorf("`--dest-prefix` and `--no-dest-prefix` cannot be set at the same time, choose one"))
 	}
 
-	s := mirror.NewSyncer(c, mmprefix, startRev)
+	// if remove destination prefix is false and destination prefix is empty set the value of destination prefix same as prefix
+	if !mmnodestprefix && len(mmdestprefix) == 0 {
+		mmdestprefix = mmprefix
+	}
 
-	// If a rev is provided, then do not sync the whole key space.
-	// Instead, just start watching the key space starting from the rev
-	if startRev == 0 {
-		rc, errc := s.SyncBase(ctx)
-
-		// if remove destination prefix is false and destination prefix is empty set the value of destination prefix same as prefix
-		if !mmnodestprefix && len(mmdestprefix) == 0 {
-			mmdestprefix = mmprefix
-		}
-
-		for r := range rc {
-			for _, kv := range r.Kvs {
-				_, err := dc.Put(ctx, modifyPrefix(string(kv.Key)), string(kv.Value))
-				if err != nil {
-					return err
-				}
-				atomic.AddInt64(&total, 1)
+	for r := range rc {
+		for _, kv := range r.Kvs {
+			_, err := dc.Put(ctx, modifyPrefix(kv.Key), kv.Value)
+			if err != nil {
+				return err
 			}
+			atomic.AddInt64(&total, 1)
 		}
+	}
 
-		err := <-errc
-		if err != nil {
-			return err
-		}
+	err := <-errc
+	if err != nil {
+		return err
 	}
 
 	wc := s.SyncUpdates(ctx)
@@ -204,21 +185,12 @@ func makeMirror(ctx context.Context, c *clientv3.Client, dc *clientv3.Client) er
 				ops = []clientv3.Op{}
 			}
 			lastRev = nextRev
-
-			if len(ops) == int(mmmaxTxnOps) {
-				_, err := dc.Txn(ctx).Then(ops...).Commit()
-				if err != nil {
-					return err
-				}
-				ops = []clientv3.Op{}
-			}
-
 			switch ev.Type {
 			case mvccpb.PUT:
-				ops = append(ops, clientv3.OpPut(modifyPrefix(string(ev.Kv.Key)), string(ev.Kv.Value)))
+				ops = append(ops, clientv3.OpPut(modifyPrefix(ev.Kv.Key), ev.Kv.Value))
 				atomic.AddInt64(&total, 1)
 			case mvccpb.DELETE:
-				ops = append(ops, clientv3.OpDelete(modifyPrefix(string(ev.Kv.Key))))
+				ops = append(ops, clientv3.OpDelete(modifyPrefix(ev.Kv.Key)))
 				atomic.AddInt64(&total, 1)
 			default:
 				panic("unexpected event type")

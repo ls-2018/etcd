@@ -1,0 +1,11 @@
+{
+  "AlarmType_NONE": {
+  },
+  "AlarmType_NOSPACE": {
+    "1": {
+      "MemberID": "1",
+      "AlarmType": "AlarmType_NOSPACE"
+    }
+  },
+  "AlarmType_CORRUPT": {}
+}

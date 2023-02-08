@@ -18,17 +18,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ls-2018/etcd_cn/etcdutl/snapshot"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 	"github.com/spf13/cobra"
-
-	"go.etcd.io/etcd/etcdutl/v3/snapshot"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
 
 	"github.com/dustin/go-humanize"
 )
 
-var (
-	OutputFormat string
-)
+var OutputFormat string
 
 type printer interface {
 	DBStatus(snapshot.Status)
@@ -67,13 +64,12 @@ func newPrinterUnsupported(n string) printer {
 func (p *printerUnsupported) DBStatus(snapshot.Status) { p.p(nil) }
 
 func makeDBStatusTable(ds snapshot.Status) (hdr []string, rows [][]string) {
-	hdr = []string{"hash", "revision", "total keys", "total size", "version"}
+	hdr = []string{"hash", "revision", "total keys", "total size"}
 	rows = append(rows, []string{
 		fmt.Sprintf("%x", ds.Hash),
 		fmt.Sprint(ds.Revision),
 		fmt.Sprint(ds.TotalKey),
 		humanize.Bytes(uint64(ds.TotalSize)),
-		ds.Version,
 	})
 	return hdr, rows
 }

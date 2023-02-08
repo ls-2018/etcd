@@ -12,24 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// etcdctl is a command line application that controls etcd.
+// Etcdctl是一个控制etcd的命令行应用程序.
 package main
 
 import (
-	"go.etcd.io/etcd/etcdctl/v3/ctlv3"
+	"github.com/ls-2018/etcd_cn/etcdctl/ctlv3"
 )
-
-/*
-*
-mainWithError is fully analogous to main, but instead of signaling errors
-by os.Exit, it exposes the error explicitly, such that test-logic can intercept
-control to e.g. dump coverage data (even for test-for-failure scenarios).
-*/
-func mainWithError() error {
-	return ctlv3.Start()
-}
 
 func main() {
 	ctlv3.MustStart()
-	return
 }

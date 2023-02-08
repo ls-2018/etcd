@@ -17,7 +17,7 @@ package etcdutl
 import (
 	"fmt"
 
-	"go.etcd.io/etcd/etcdutl/v3/snapshot"
+	"github.com/ls-2018/etcd_cn/etcdutl/snapshot"
 )
 
 type fieldsPrinter struct{ printer }
@@ -27,5 +27,4 @@ func (p *fieldsPrinter) DBStatus(r snapshot.Status) {
 	fmt.Println(`"Revision" :`, r.Revision)
 	fmt.Println(`"Keys" :`, r.TotalKey)
 	fmt.Println(`"Size" :`, r.TotalSize)
-	fmt.Println(`"Version" :`, r.Version)
 }

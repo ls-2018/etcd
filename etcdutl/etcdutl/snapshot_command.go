@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"strings"
 
-	"go.etcd.io/etcd/etcdutl/v3/snapshot"
-	"go.etcd.io/etcd/pkg/v3/cobrautl"
-	"go.etcd.io/etcd/server/v3/storage/datadir"
+	"github.com/ls-2018/etcd_cn/etcd/datadir"
+	"github.com/ls-2018/etcd_cn/etcdutl/snapshot"
+	"github.com/ls-2018/etcd_cn/pkg/cobrautl"
 
 	"github.com/spf13/cobra"
 )
@@ -46,26 +46,24 @@ func NewSnapshotCommand() *cobra.Command {
 		Use:   "snapshot <subcommand>",
 		Short: "Manages etcd node snapshots",
 	}
-	cmd.AddCommand(NewSnapshotRestoreCommand())
-	cmd.AddCommand(newSnapshotStatusCommand())
+	cmd.AddCommand(NewSnapshotRestoreCommand()) // restore
+	cmd.AddCommand(newSnapshotStatusCommand())  // status
 	return cmd
 }
 
 func newSnapshotStatusCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status <filename>",
-		Short: "Gets backend snapshot status of a given file",
-		Long: `When --write-out is set to simple, this command prints out comma-separated status lists for each endpoint.
-The items in the lists are hash, revision, total keys, total size.
-`,
-		Run: SnapshotStatusCommandFunc,
+		Short: "从给定的文件获取快照状态",
+		Long:  ``,
+		Run:   SnapshotStatusCommandFunc,
 	}
 }
 
 func NewSnapshotRestoreCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "restore <filename> --data-dir {output dir} [options]",
-		Short: "Restores an etcd member snapshot to an etcd directory",
+		Short: "将etcd成员快照恢复到etcd目录",
 		Run:   snapshotRestoreCommandFunc,
 	}
 	cmd.Flags().StringVar(&restoreDataDir, "data-dir", "", "Path to the output data directory")
@@ -76,8 +74,7 @@ func NewSnapshotRestoreCommand() *cobra.Command {
 	cmd.Flags().StringVar(&restoreName, "name", defaultName, "Human-readable name for this member")
 	cmd.Flags().BoolVar(&skipHashCheck, "skip-hash-check", false, "Ignore snapshot integrity hash value (required if copied from data directory)")
 
-	cmd.MarkFlagDirname("data-dir")
-	cmd.MarkFlagDirname("wal-dir")
+	cmd.MarkFlagRequired("data-dir")
 
 	return cmd
 }
@@ -99,8 +96,7 @@ func SnapshotStatusCommandFunc(cmd *cobra.Command, args []string) {
 }
 
 func snapshotRestoreCommandFunc(_ *cobra.Command, args []string) {
-	SnapshotRestoreCommandFunc(restoreCluster, restoreClusterToken, restoreDataDir, restoreWalDir,
-		restorePeerURLs, restoreName, skipHashCheck, args)
+	SnapshotRestoreCommandFunc(restoreCluster, restoreClusterToken, restoreDataDir, restoreWalDir, restorePeerURLs, restoreName, skipHashCheck, args)
 }
 
 func SnapshotRestoreCommandFunc(restoreCluster string,
@@ -110,7 +106,8 @@ func SnapshotRestoreCommandFunc(restoreCluster string,
 	restorePeerURLs string,
 	restoreName string,
 	skipHashCheck bool,
-	args []string) {
+	args []string,
+) {
 	if len(args) != 1 {
 		err := fmt.Errorf("snapshot restore requires exactly one argument")
 		cobrautl.ExitWithError(cobrautl.ExitBadArgs, err)
